@@ -14,7 +14,7 @@ interface GameArenaProps {
 
 export function GameArena({ onBack, cartels, selectedIds }: GameArenaProps) {
   // Mock IDs from screenshot starting at 157
-  const displayCartels = Array.from({ length: 72 }, (_, i) => ({
+  const displayCartels = Array.from({ length: 400 }, (_, i) => ({
     id: 157 + i,
     board: cartels[i % cartels.length].board
   }));

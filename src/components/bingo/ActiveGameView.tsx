@@ -33,10 +33,8 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
   const playCalledNumberSound = async (number: number) => {
     if (!isSoundEnabled) return;
     try {
-      // Use AI commentary flow for the call
       const result = await bingoCallCommentary({ bingoNumber: number });
       console.log("AI Commentary:", result.commentary);
-      // In a real app, you would use TTS here. For now, we simulate the delay.
     } catch (e) {
       console.error("AI call failed", e);
     }
@@ -65,7 +63,6 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
     O: 'bg-orange-500',
   };
 
-  // Handle game end cleanup and navigation
   useEffect(() => {
     if (isGameOver) {
       const timer = setTimeout(() => {
@@ -79,7 +76,6 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
     }
   }, [isGameOver, winnerId, onLeave, onWin, derash]);
 
-  // Initial setup: Draw numbers and manage marking state
   useEffect(() => {
     const initialMarkings: Record<number, Set<number | string>> = {};
     selectedIds.forEach(id => {
@@ -102,21 +98,19 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
       });
     };
 
-    drawNumber(); // Initial draw
-    gameInterval.current = setInterval(drawNumber, 3000); // Faster calls (3s)
+    drawNumber();
+    gameInterval.current = setInterval(drawNumber, 3000);
 
     return () => {
       if (gameInterval.current) clearInterval(gameInterval.current);
     };
   }, [selectedIds, isGameOver]);
 
-  // Call the number using AI
   useEffect(() => {
     if (isGameOver || !currentNumber) return;
     playCalledNumberSound(currentNumber);
   }, [currentNumber, isGameOver]);
 
-  // Automatic marking logic
   useEffect(() => {
     if (isGameOver || !isAutomatic || !currentNumber) return;
 
@@ -148,7 +142,6 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
     });
   }, [currentNumber, isAutomatic, selectedIds, cartels, isGameOver]);
 
-  // Immediate win detection
   useEffect(() => {
     if (isGameOver) return;
     
@@ -201,7 +194,6 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
         </div>
       )}
 
-      {/* Top Header Bar */}
       <div className="h-12 px-4 flex items-center justify-between border-b-4 border-black bg-[#14182d] flex-none">
         <div className="flex items-center gap-4">
           <X className="w-6 h-6 text-white/70 cursor-pointer hover:text-white" onClick={onLeave} />
@@ -218,7 +210,6 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
         </div>
       </div>
 
-      {/* Stats Bar */}
       <div className="grid grid-cols-5 gap-px bg-black p-px border-b-4 border-black flex-none">
         {[
           { label: 'GAME', value: playerId },
@@ -235,7 +226,6 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
       </div>
 
       <div className="flex flex-1 p-1 gap-1 bg-black overflow-hidden">
-        {/* Number History Board */}
         <div className="w-[42%] flex flex-col bg-[#0f1225] border-2 border-black overflow-hidden">
           <div className="grid grid-cols-5 gap-px bg-black border-b-2 border-black">
             {columns.map(col => (
@@ -249,9 +239,12 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
                   const startMap: any = { B: 1, I: 16, N: 31, G: 46, O: 61 };
                   const num = startMap[col] + i;
                   const isCurrent = num === currentNumber;
-                  const isPast = calledNumbers.includes(num) && !isCurrent;
+                  const isCalled = calledNumbers.includes(num);
                   return (
-                    <div key={i} className={cn("h-7 flex items-center justify-center text-[11px] font-black border-b border-r border-black", isCurrent ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(34,197,94,0.6)]" : isPast ? "bg-destructive text-white" : "bg-[#14182d] text-white/5")}>
+                    <div key={i} className={cn("h-7 flex items-center justify-center text-[11px] font-black border-b border-r border-black", 
+                      isCurrent ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.7)]" 
+                      : isCalled ? "bg-amber-500 text-black" 
+                      : "bg-[#14182d] text-white/5")}>
                       {num}
                     </div>
                   );
@@ -261,7 +254,6 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
           </div>
         </div>
 
-        {/* Main Game Area */}
         <div className="flex-1 flex flex-col gap-1 min-w-0">
           <div className="flex items-center justify-start gap-1 flex-none h-10 px-2 bg-[#14182d] border-2 border-black overflow-x-auto scrollbar-hide">
             {[...calledNumbers].reverse().slice(1, 15).map((n, i) => (
