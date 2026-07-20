@@ -8,12 +8,11 @@ import { BottomNav } from '@/components/bingo/BottomNav';
 import { generateBingoCard } from '@/lib/bingo-utils';
 
 // TYPES AND CONSTANTS
-interface SimulatedPlayer {
+interface Player {
   id: string;
   name: string;
   cartelIds: number[];
 }
-const sampleNames = ["Dani", "Hana", "Alex", "Sara", "Mike", "Nati", "Beti", "John", "Sami", "Lili"];
 const GAME_DURATION = 35;
 
 // --- COMPONENT --- //
@@ -21,8 +20,7 @@ export default function LuckyBingo() {
   const [currentPage, setCurrentPage] = useState<'home' | 'selection' | 'active-game' | 'scores' | 'history' | 'wallet' | 'profile'>('home');
   const [selectedCartels, setSelectedCartels] = useState<number[]>([]);
   const [timer, setTimer] = useState(GAME_DURATION);
-  const [balance, setBalance] = useState(0); // 1. Initial balance is 0
-  const [simulatedPlayers, setSimulatedPlayers] = useState<SimulatedPlayer[]>([]);
+  const [balance, setBalance] = useState(0); 
   const [playerId, setPlayerId] = useState('');
   const [playerName, setPlayerName] = useState('You');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -30,7 +28,6 @@ export default function LuckyBingo() {
   const cartels = useMemo(() => Array.from({ length: 1000 }, (_, i) => ({ id: i + 1, board: generateBingoCard() })), []);
 
   useEffect(() => {
-    // 2. Simulate fetching balance from a database
     setBalance(500);
     setIsLoaded(true);
   }, []);
@@ -52,31 +49,7 @@ export default function LuckyBingo() {
     return () => clearInterval(gameTimer);
   }, [currentPage, selectedCartels, balance]);
 
-  // Player simulation logic
-  useEffect(() => {
-    if (currentPage === 'selection') {
-        const numPlayers = Math.floor(Math.random() * 15) + 10; 
-        const players: SimulatedPlayer[] = [];
-        const availableCartelIds = Array.from({ length: 1000 }, (_, i) => i + 1).filter(id => !selectedCartels.includes(id));
-
-        for (let i = 0; i < numPlayers; i++) {
-            const cartelCount = Math.floor(Math.random() * 4) + 1;
-            const assignedCartels = [];
-            for (let j = 0; j < cartelCount; j++) {
-                if (availableCartelIds.length > 0) {
-                    const randIndex = Math.floor(Math.random() * availableCartelIds.length);
-                    assignedCartels.push(availableCartelIds.splice(randIndex, 1)[0]);
-                }
-            }
-            players.push({ 
-                id: `sim-${i}`,
-                name: sampleNames[Math.floor(Math.random() * sampleNames.length)], 
-                cartelIds: assignedCartels
-            });
-        }
-        setSimulatedPlayers(players);
-    }
-  }, [currentPage]);
+  // Player simulation logic is REMOVED to avoid confusion.
 
   const handleGameEnd = (winInfo: WinInfo | null) => {
     if (winInfo && winInfo.winnerName === playerName) {
@@ -115,7 +88,6 @@ export default function LuckyBingo() {
             setSelectedIds={setSelectedCartels}
             timer={timer}
             balance={balance}
-            // 3. Removed playerCount from here
           />
         );
       case 'active-game':
@@ -125,7 +97,8 @@ export default function LuckyBingo() {
             selectedIds={selectedCartels}
             cartels={cartels}
             player={{id: playerId, name: playerName, cartelIds: selectedCartels}}
-            otherPlayers={simulatedPlayers}
+            // Passing an empty array to remove simulated players
+            otherPlayers={[]} 
           />
         );
       default:
