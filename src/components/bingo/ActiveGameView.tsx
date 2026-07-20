@@ -22,7 +22,7 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
   const [isSoundEnabled, setIsSoundEnabled] = useState(true);
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
   const [markedNumbers, setMarkedNumbers] = useState<Record<number, Set<number | string>>>({});
-  const [derash, setDerash] = useState(100); // Fixed pool for demo
+  const [derash, setDerash] = useState(100); 
   const [winnerId, setWinnerId] = useState<number | null>(null);
   const [isGameOver, setIsGameOver] = useState(false);
   const gameInterval = useRef<NodeJS.Timeout | null>(null);
@@ -30,22 +30,17 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
   const currentNumber = calledNumbers[calledNumbers.length - 1];
   const hasSelectedCards = selectedIds.length > 0;
 
-  const playCalledNumberSound = async (number: number) => {
+  const playCommentary = async (number: number) => {
     if (!isSoundEnabled) return;
     try {
       const result = await bingoCallCommentary({ bingoNumber: number });
+      // In a real app, we would use TTS to speak this result.
       console.log("AI Commentary:", result.commentary);
     } catch (e) {
       console.error("AI call failed", e);
     }
   };
 
-  const playWinSound = () => {
-    if (!isSoundEnabled || typeof window === 'undefined') return;
-    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3');
-    void audio.play().catch(() => undefined);
-  };
-  
   const getLetter = (num: number) => {
     if (num <= 15) return 'B';
     if (num <= 30) return 'I';
@@ -63,19 +58,7 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
     O: 'bg-orange-500',
   };
 
-  useEffect(() => {
-    if (isGameOver) {
-      const timer = setTimeout(() => {
-        if (winnerId !== null && onWin) {
-          onWin(derash);
-        } else {
-          onLeave();
-        }
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [isGameOver, winnerId, onLeave, onWin, derash]);
-
+  // Setup initial markings and start the game loop
   useEffect(() => {
     const initialMarkings: Record<number, Set<number | string>> = {};
     selectedIds.forEach(id => {
@@ -106,89 +89,105 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
     };
   }, [selectedIds, isGameOver]);
 
+  // Handle number calling sounds/commentary
   useEffect(() => {
     if (isGameOver || !currentNumber) return;
-    playCalledNumberSound(currentNumber);
+    playCommentary(currentNumber);
   }, [currentNumber, isGameOver]);
 
+  // Automatic marking and win checking
   useEffect(() => {
-    if (isGameOver || !isAutomatic || !currentNumber) return;
+    if (isGameOver || !currentNumber) return;
 
     setMarkedNumbers(prev => {
       const next = { ...prev };
       let changed = false;
+      let roundWinner: number | null = null;
 
       selectedIds.forEach(id => {
         const card = cartels.find(c => c.id === id);
         if (card) {
-          const marks = new Set(prev[id]);
-          let found = false;
+          const marks = new Set(prev[id] || ['★', 'FREE']);
           
+          // Check if current number is on this card
           Object.values(card.board).forEach((col: any) => {
             if (col.includes(currentNumber)) {
               marks.add(currentNumber);
-              found = true;
+              changed = true;
             }
           });
 
-          if (found) {
-            next[id] = marks;
-            changed = true;
+          next[id] = marks;
+
+          // Immediate win check for this card
+          if (checkBingoWin(card.board, marks)) {
+            roundWinner = id;
           }
         }
       });
 
+      if (roundWinner !== null) {
+        setWinnerId(roundWinner);
+        setIsGameOver(true);
+        if (gameInterval.current) clearInterval(gameInterval.current);
+      }
+
       return changed ? next : prev;
     });
-  }, [currentNumber, isAutomatic, selectedIds, cartels, isGameOver]);
+  }, [currentNumber, selectedIds, cartels, isGameOver]);
 
+  // Transition after game ends
   useEffect(() => {
-    if (isGameOver) return;
-    
-    let foundWinnerId: number | null = null;
-    selectedIds.forEach(id => {
-      const card = cartels.find(c => c.id === id);
-      const marks = markedNumbers[id];
-      if (card && marks && checkBingoWin(card.board, marks)) {
-        foundWinnerId = id;
-      }
-    });
-
-    if (foundWinnerId !== null) {
-      setWinnerId(foundWinnerId);
-      setIsGameOver(true);
-      playWinSound();
-      if (gameInterval.current) clearInterval(gameInterval.current);
+    if (isGameOver) {
+      const timer = setTimeout(() => {
+        if (winnerId !== null && onWin) {
+          onWin(derash);
+        } else {
+          onLeave();
+        }
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-  }, [markedNumbers, selectedIds, cartels, isGameOver]);
+  }, [isGameOver, winnerId, onLeave, onWin, derash]);
 
   const handleCellClick = (cardId: number, value: number | string) => {
     if (isAutomatic || isGameOver) return;
     if (typeof value === 'number' && !calledNumbers.includes(value)) return;
     
     setMarkedNumbers(prev => {
-      const marks = new Set(prev[cardId]);
+      const marks = new Set(prev[cardId] || []);
       if (marks.has(value)) {
         marks.delete(value);
       } else {
         marks.add(value);
       }
-      return { ...prev, [cardId]: marks };
+      
+      const newMarkings = { ...prev, [cardId]: marks };
+      
+      // Manual win check
+      const card = cartels.find(c => c.id === cardId);
+      if (card && checkBingoWin(card.board, marks)) {
+        setWinnerId(cardId);
+        setIsGameOver(true);
+        if (gameInterval.current) clearInterval(gameInterval.current);
+      }
+      
+      return newMarkings;
     });
   };
 
   return (
     <div className="min-h-screen bg-[#05070a] text-white flex flex-col font-body max-w-md mx-auto overflow-hidden relative">
       {isGameOver && winnerId && (
-        <div className="absolute inset-0 z-[100] bg-black/90 flex flex-col items-center justify-center p-6 text-center backdrop-blur-xl animate-in fade-in duration-500">
+        <div className="absolute inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-6 text-center backdrop-blur-xl animate-in fade-in duration-500">
           <div className="bg-gradient-to-b from-primary/30 to-black border-4 border-primary rounded-3xl p-10 shadow-[0_0_100px_rgba(34,197,94,0.4)] animate-in zoom-in-95 duration-500">
             <Trophy className="w-24 h-24 text-primary mx-auto mb-6" />
-            <h2 className="text-6xl font-black text-white mb-2 tracking-tighter uppercase italic drop-shadow-lg">BINGO!</h2>
-            <div className="text-primary font-black text-3xl mb-4 uppercase tracking-[0.2em]">Card #{winnerId} Wins!</div>
-            <div className="text-white font-black text-xl mb-8">Prize: {derash} ETB</div>
+            <h2 className="text-6xl font-black text-white mb-2 tracking-tighter uppercase italic drop-shadow-lg">ቢንጎ!</h2>
+            <div className="text-primary font-black text-3xl mb-4 uppercase tracking-[0.2em]">ካርታ #{winnerId} አሸነፈ!</div>
+            <div className="text-white font-black text-xl mb-8">ሽልማት: {derash} ብር</div>
             <div className="flex items-center justify-center gap-3">
                <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
-               <span className="text-[12px] font-black uppercase tracking-[0.3em] text-white/70">Starting New Round...</span>
+               <span className="text-[12px] font-black uppercase tracking-[0.3em] text-white/70">አዲስ ዙር እየተዘጋጀ ነው...</span>
             </div>
           </div>
         </div>
@@ -197,7 +196,7 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
       <div className="h-12 px-4 flex items-center justify-between border-b-4 border-black bg-[#14182d] flex-none">
         <div className="flex items-center gap-4">
           <X className="w-6 h-6 text-white/70 cursor-pointer hover:text-white" onClick={onLeave} />
-          <h1 className="text-[12px] font-black uppercase tracking-[0.2em]">Live Arena</h1>
+          <h1 className="text-[12px] font-black uppercase tracking-[0.2em]">ቢንጎ አሬና</h1>
         </div>
         <div className="flex items-center gap-3 bg-black/60 px-3 py-1 rounded-sm border border-white/10">
            <button onClick={() => setIsSoundEnabled(!isSoundEnabled)}>
@@ -212,9 +211,9 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
 
       <div className="grid grid-cols-5 gap-px bg-black p-px border-b-4 border-black flex-none">
         {[
-          { label: 'GAME', value: playerId },
+          { label: 'GAME ID', value: playerId },
           { label: 'PLAYERS', value: playerCount.toString() },
-          { label: 'BET', value: '10' },
+          { label: 'STAKE', value: '10' },
           { label: 'POOL', value: derash.toString() },
           { label: 'CALLS', value: calledNumbers.length.toString() },
         ].map((stat, i) => (
@@ -244,7 +243,7 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
                     <div key={i} className={cn("h-7 flex items-center justify-center text-[11px] font-black border-b border-r border-black", 
                       isCurrent ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.7)]" 
                       : isCalled ? "bg-amber-500 text-black" 
-                      : "bg-[#14182d] text-white/5")}>
+                      : "bg-[#14182d] text-white/10")}>
                       {num}
                     </div>
                   );
@@ -273,7 +272,7 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
                 </span>
              </div>
              <div className="mt-1 text-[7px] font-black text-primary/40 uppercase tracking-[0.6em]">
-                {isGameOver ? 'ROUND ENDED' : 'CALLING NOW'}
+                {isGameOver ? 'ጨዋታው ተጠናቋል' : 'ቁጥር እየወጣ ነው'}
              </div>
           </div>
 
@@ -299,7 +298,7 @@ export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [],
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4">
                     <Eye className="w-12 h-12 text-primary/40" />
-                    <h2 className="text-xl font-black text-white uppercase italic">Watching Mode</h2>
+                    <h2 className="text-xl font-black text-white uppercase italic">ተመልካች</h2>
                     <p className="text-[12px] text-white/60 font-medium">የዚህ ዙር ጨዋታ ተጀምሯል:: አዲስ ዙር እስኪጀምር ይጠብቁ::</p>
                   </div>
                 )}

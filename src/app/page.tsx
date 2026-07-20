@@ -11,7 +11,7 @@ export default function LuckyBingo() {
   const [currentPage, setCurrentPage] = useState<'home' | 'selection' | 'active-game' | 'scores' | 'history' | 'wallet' | 'profile'>('home');
   const [selectedCartels, setSelectedCartels] = useState<number[]>([]);
   const [timer, setTimer] = useState(35);
-  const [balance, setBalance] = useState(1000.00); // 1000 ETB for testing on localhost
+  const [balance, setBalance] = useState(1000.00); 
   const [playerCount, setPlayerCount] = useState(12);
   const [playerId, setPlayerId] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -34,6 +34,9 @@ export default function LuckyBingo() {
       } catch (e) {
         console.error("Failed to restore state", e);
       }
+    } else {
+      // First time user on localhost
+      setBalance(1000.00);
     }
 
     // Load or generate Player ID
@@ -119,11 +122,20 @@ export default function LuckyBingo() {
           <CartelSelection 
             cartels={cartels} 
             onBack={() => setCurrentPage('home')}
+            onPlay={(ids) => {
+              if (ids.length > 0) {
+                const stake = ids.length * 10;
+                if (balance >= stake) {
+                  setBalance(b => b - stake);
+                  setSelectedCartels(ids);
+                  setCurrentPage('active-game');
+                }
+              }
+            }}
             selectedIds={selectedCartels}
             setSelectedIds={setSelectedCartels}
             timer={timer}
             balance={balance}
-            playerCount={playerCount}
           />
         );
       case 'active-game':
@@ -141,19 +153,19 @@ export default function LuckyBingo() {
         return (
           <div className="flex flex-col items-center justify-center min-h-[calc(100vh-100px)] px-6 text-center">
             <h2 className="text-2xl font-black uppercase tracking-widest text-white/20 italic">{currentPage}</h2>
-            <p className="text-sm text-white/40 mt-2 font-bold uppercase tracking-widest">Coming Soon</p>
+            <p className="text-sm text-white/40 mt-2 font-bold uppercase tracking-widest">በቅርቡ ይጠብቁ</p>
             <button 
               onClick={() => setCurrentPage('home')}
               className="mt-8 text-primary font-black text-xs underline underline-offset-4 tracking-[0.2em]"
             >
-              RETURN HOME
+              ተመለስ
             </button>
           </div>
         );
     }
   };
 
-  const showBottomNav = ['home', 'selection', 'scores', 'history', 'wallet', 'profile'].includes(currentPage);
+  const showBottomNav = ['home', 'scores', 'history', 'wallet', 'profile'].includes(currentPage);
 
   return (
     <div className="app-shell min-h-screen w-full bg-[#05070a] text-white font-body overflow-x-hidden">
