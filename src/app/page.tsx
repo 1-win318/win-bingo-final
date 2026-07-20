@@ -21,7 +21,7 @@ export default function LuckyBingo() {
   const [currentPage, setCurrentPage] = useState<'home' | 'selection' | 'active-game' | 'scores' | 'history' | 'wallet' | 'profile'>('home');
   const [selectedCartels, setSelectedCartels] = useState<number[]>([]);
   const [timer, setTimer] = useState(GAME_DURATION);
-  const [balance, setBalance] = useState(100);
+  const [balance, setBalance] = useState(0); // 1. Initial balance is 0
   const [simulatedPlayers, setSimulatedPlayers] = useState<SimulatedPlayer[]>([]);
   const [playerId, setPlayerId] = useState('');
   const [playerName, setPlayerName] = useState('You');
@@ -30,6 +30,8 @@ export default function LuckyBingo() {
   const cartels = useMemo(() => Array.from({ length: 1000 }, (_, i) => ({ id: i + 1, board: generateBingoCard() })), []);
 
   useEffect(() => {
+    // 2. Simulate fetching balance from a database
+    setBalance(500);
     setIsLoaded(true);
   }, []);
 
@@ -53,12 +55,12 @@ export default function LuckyBingo() {
   // Player simulation logic
   useEffect(() => {
     if (currentPage === 'selection') {
-        const numPlayers = Math.floor(Math.random() * 15) + 10; // 10-24 players
+        const numPlayers = Math.floor(Math.random() * 15) + 10; 
         const players: SimulatedPlayer[] = [];
         const availableCartelIds = Array.from({ length: 1000 }, (_, i) => i + 1).filter(id => !selectedCartels.includes(id));
 
         for (let i = 0; i < numPlayers; i++) {
-            const cartelCount = Math.floor(Math.random() * 4) + 1; // 1-4 cartels
+            const cartelCount = Math.floor(Math.random() * 4) + 1;
             const assignedCartels = [];
             for (let j = 0; j < cartelCount; j++) {
                 if (availableCartelIds.length > 0) {
@@ -69,18 +71,12 @@ export default function LuckyBingo() {
             players.push({ 
                 id: `sim-${i}`,
                 name: sampleNames[Math.floor(Math.random() * sampleNames.length)], 
-                cartelCount,
                 cartelIds: assignedCartels
             });
         }
         setSimulatedPlayers(players);
     }
   }, [currentPage]);
-
-  const playerCount = useMemo(() => {
-    const currentUserIsPlaying = selectedCartels.length > 0;
-    return simulatedPlayers.length + (currentUserIsPlaying ? 1 : 0);
-  }, [simulatedPlayers, selectedCartels]);
 
   const handleGameEnd = (winInfo: WinInfo | null) => {
     if (winInfo && winInfo.winnerName === playerName) {
@@ -92,9 +88,7 @@ export default function LuckyBingo() {
   };
   
   const handlePlay = (ids: number[]) => {
-      if (ids.length === 0) {
-          return;
-      }
+      if (ids.length === 0) return;
       const stake = ids.length * 10;
       if (balance >= stake) {
         setBalance(b => b - stake);
@@ -121,7 +115,7 @@ export default function LuckyBingo() {
             setSelectedIds={setSelectedCartels}
             timer={timer}
             balance={balance}
-            playerCount={playerCount}
+            // 3. Removed playerCount from here
           />
         );
       case 'active-game':
