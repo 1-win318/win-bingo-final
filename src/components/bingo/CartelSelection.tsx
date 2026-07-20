@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,34 +17,41 @@ interface CartelSelectionProps {
 }
 
 export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelectedIds, timer, balance }: CartelSelectionProps) {
-  
+  const [error, setError] = useState<string | null>(null);
+
   const toggleCartel = (id: number) => {
     setSelectedIds(prev => {
       const isSelected = prev.includes(id);
+
       if (isSelected) {
+        // Always allow deselecting
         return prev.filter(i => i !== id);
       } else {
-        if (prev.length < 4) {
-          return [...prev, id];
+        // Check for sufficient balance before selecting a new card
+        const newStake = (prev.length + 1) * 10;
+        if (balance < newStake) {
+          setError("Insufficient balance");
+          setTimeout(() => setError(null), 2000); // Clear error after 2s
+          return prev; // Do not add the new card
         }
+        // No limit on how many cards can be selected
+        return [...prev, id];
       }
-      return prev;
     });
   };
 
-  // Automatically transition to play when timer hits 0
+  // Automatically transition to play when the timer hits 0
   useEffect(() => {
     if (timer <= 0) {
       onPlay(selectedIds);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timer]);
 
   const stake = selectedIds.length * 10;
   const displayedCartels = cartels.slice(0, 400);
 
   return (
-    // The `h-screen` and `flex-col` ensures the footer is pushed to the bottom
     <div className="h-screen bg-[#1e1b32] text-white flex flex-col font-body items-center">
       
       {/* Header */}
@@ -63,12 +70,11 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
       <section className="w-full max-w-md grid grid-cols-4 text-center bg-[#131121] flex-none">
          <StatBox label="Main Wallet" value={balance.toFixed(0)} />
          <StatBox label="Play Wallet" value="0" />
-         <StatBox label="Stake" value={stake} />
+         <StatBox label="Stake" value={error || stake} isError={!!error} />
          <StatBox label="Timer" value={`${timer}s`} isTimer />
       </section>
 
       {/* Scrollable Number Grid */}
-      {/* `flex-1` makes this section take up all available space, pushing the footer down */}
       <main className="w-full max-w-md flex-1 p-2 overflow-y-auto scrollbar-hide">
         <div className="grid grid-cols-8 gap-2">
           {displayedCartels.map((c) => {
@@ -81,7 +87,7 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
                   "aspect-square rounded-md flex items-center justify-center text-sm font-bold transition-all duration-200 border",
                   isSelected
                     ? "bg-green-500 border-green-400 text-white shadow-lg scale-110"
-                    : "bg-[#2c2849] border-transparent text-white/70 hover:bg-[#423d6a]"
+                    : "bg-[#2c2849] border-transparent text-white hover:bg-[#423d6a]"
                 )}
               >
                 {c.id}
@@ -92,20 +98,13 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
       </main>
 
       {/* Bottom Section (Fixed) */}
-      {/* This footer is not part of the scrollable area */}
       <footer className="w-full max-w-md flex-none bg-black/20 pt-2">
         <div className="min-h-[110px] flex items-center justify-center p-2">
           {selectedIds.length > 0 ? (
-              <div className="grid grid-cols-4 gap-3 w-full">
-                  {/* Show placeholders for unselected cards to maintain layout */}
-                  {Array.from({ length: 4 }).map((_, index) => {
-                    const id = selectedIds[index];
-                    if (!id) {
-                        return <div key={`placeholder-${index}`} className="w-full h-full" />
-                    }
+              <div className={cn("grid w-full gap-3", selectedIds.length <= 4 ? "grid-cols-4" : "grid-cols-5")}>
+                  {selectedIds.map(id => {
                     const cartel = displayedCartels.find(c => c.id === id);
-                    if (!cartel) return <div key={`placeholder-found-${index}`} />;
-                    
+                    if (!cartel) return <div key={id} />;
                     return (
                       <div key={id} className="w-full animate-in zoom-in-95 fade-in-0 duration-300">
                           <BingoCard data={cartel.board} isMini={true} />
@@ -122,9 +121,13 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
   );
 }
 
-const StatBox = ({ label, value, isTimer = false }: { label: string; value: string | number; isTimer?: boolean }) => (
+const StatBox = ({ label, value, isTimer = false, isError = false }: { label: string; value: string | number; isTimer?: boolean; isError?: boolean; }) => (
     <div className="py-2 border-r border-black/20 last:border-r-0">
         <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">{label}</p>
-        <p className={cn("font-bold text-lg", isTimer ? "text-yellow-400" : "text-white")}>{value}</p>
+        <p className={cn("font-bold text-lg", 
+          isTimer ? "text-yellow-400" 
+          : isError ? "text-red-500 text-xs" 
+          : "text-white"
+        )}>{value}</p>
     </div>
 );
