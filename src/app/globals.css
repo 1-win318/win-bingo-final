@@ -61,10 +61,6 @@
   box-shadow: 0 0 15px 2px rgba(34, 197, 94, 0.4);
 }
 
-.glow-red {
-  box-shadow: 0 0 10px 1px rgba(239, 68, 68, 0.3);
-}
-
 .premium-panel {
   position: relative;
   isolation: isolate;
@@ -81,42 +77,6 @@
   -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
-.premium-panel::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 20%, transparent 50%),
-    linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.04) 35%, transparent 70%);
-  pointer-events: none;
-  z-index: -1;
-}
-
-.premium-grid-surface {
-  background:
-    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.01)),
-    linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255,255,255,0.08) 1px, transparent 1px),
-    linear-gradient(135deg, #121623 0%, #232a39 50%, #0a0e15 100%);
-  background-size: auto, 10px 10px, 10px 10px, auto;
-  box-shadow:
-    inset 0 1px 1px rgba(255,255,255,0.14),
-    inset 0 -10px 18px rgba(0,0,0,0.55),
-    0 10px 30px rgba(0,0,0,0.35);
-}
-
-.premium-carbon {
-  background:
-    linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 10px),
-    linear-gradient(180deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 8px),
-    radial-gradient(circle at top left, rgba(255,255,255,0.16), transparent 35%),
-    linear-gradient(135deg, #0d1a17 0%, #11261d 45%, #08110d 100%);
-  background-size: 12px 12px, 12px 12px, auto, auto;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.16),
-    inset 0 -8px 18px rgba(0,0,0,0.55);
-}
-
 .premium-bingo-card {
   position: relative;
   overflow: hidden;
@@ -130,67 +90,11 @@
     0 12px 24px rgba(0,0,0,0.25);
 }
 
-.premium-bingo-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 18%, transparent 32%),
-    repeating-linear-gradient(0deg, rgba(0,0,0,0.03) 0 2px, transparent 2px 8px);
-  mix-blend-mode: multiply;
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-.premium-bingo-card::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border: 1px solid rgba(255,255,255,0.4);
-  border-radius: calc(0.75rem - 1px);
-  pointer-events: none;
-}
-
-.premium-header-blue {
-  background: linear-gradient(180deg, #2f67ff 0%, #1540b6 45%, #0d2b88 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -3px 6px rgba(0,0,0,0.28);
-}
-
-.premium-header-indigo {
-  background: linear-gradient(180deg, #5965ff 0%, #3b44c2 45%, #232a7b 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -3px 6px rgba(0,0,0,0.28);
-}
-
-.premium-header-pink {
-  background: linear-gradient(180deg, #ff72b6 0%, #ce3f7f 45%, #7c1d4e 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -3px 6px rgba(0,0,0,0.28);
-}
-
-.premium-header-green {
-  background: linear-gradient(180deg, #37e86a 0%, #1ca54d 45%, #0e6130 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -3px 6px rgba(0,0,0,0.28);
-}
-
-.premium-header-orange {
-  background: linear-gradient(180deg, #ffb347 0%, #ff7b1f 45%, #9f3f0b 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -3px 6px rgba(0,0,0,0.28);
-}
-
 .premium-cell {
   position: relative;
   overflow: hidden;
   background: linear-gradient(135deg, #fbfbfb 0%, #f4f2ea 100%);
   box-shadow: inset 0 1px 1px rgba(255,255,255,0.9), inset 0 -4px 8px rgba(0,0,0,0.12);
-  text-rendering: geometricPrecision;
-  -webkit-font-smoothing: antialiased;
-}
-
-.premium-cell::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(145deg, rgba(255,255,255,0.9), transparent 35%, rgba(255,255,255,0.12));
-  pointer-events: none;
 }
 
 .premium-cell-marked {
@@ -202,19 +106,4 @@
     inset 0 -6px 12px rgba(0,0,0,0.25),
     0 0 14px rgba(53, 231, 121, 0.45);
   color: white;
-  text-shadow: 0 0 8px rgba(255,255,255,0.6);
-}
-
-.premium-cell-marked::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(120deg, rgba(255,255,255,0.45), transparent 40%, rgba(255,255,255,0.12));
-  pointer-events: none;
-}
-
-.premium-text {
-  text-rendering: geometricPrecision;
-  -webkit-font-smoothing: antialiased;
-  letter-spacing: 0.02em;
 }

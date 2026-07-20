@@ -16,13 +16,11 @@ export default function LuckyBingo() {
   const [playerId, setPlayerId] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
   
-  // Initialize 400 unique cartels
   const cartels = useMemo(() => Array.from({ length: 400 }, (_, i) => ({
     id: i + 1,
     board: generateBingoCard()
   })), []);
 
-  // Persistence: Load state on mount
   useEffect(() => {
     const saved = localStorage.getItem('lucky_bingo_state');
     if (saved) {
@@ -35,11 +33,9 @@ export default function LuckyBingo() {
         console.error("Failed to restore state", e);
       }
     } else {
-      // First time user on localhost
       setBalance(1000.00);
     }
 
-    // Load or generate Player ID
     let savedPlayerId = localStorage.getItem('lucky_bingo_player_id');
     if (!savedPlayerId) {
       savedPlayerId = 'P-' + Math.floor(100000 + Math.random() * 900000);
@@ -50,7 +46,6 @@ export default function LuckyBingo() {
     setIsLoaded(true);
   }, []);
 
-  // Persistence: Save state on change
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem('lucky_bingo_state', JSON.stringify({
@@ -61,7 +56,6 @@ export default function LuckyBingo() {
     }
   }, [currentPage, selectedCartels, balance, isLoaded]);
 
-  // Timer logic for selection page
   useEffect(() => {
     let gameTimer: NodeJS.Timeout;
     if (currentPage === 'selection') {
@@ -69,15 +63,13 @@ export default function LuckyBingo() {
         setTimer((prev) => {
           if (prev <= 1) {
             if (selectedCartels.length === 0) {
-              return 35; // Reset if nothing selected
+              return 35;
             }
-            // Proceed to game and deduct balance
             const stake = selectedCartels.length * 10;
             if (balance >= stake) {
               setBalance(b => b - stake);
               setCurrentPage('active-game');
             } else {
-              // Not enough balance, reset selection
               setSelectedCartels([]);
               return 35;
             }
@@ -110,7 +102,7 @@ export default function LuckyBingo() {
   const renderContent = () => {
     if (!isLoaded) return (
       <div className="min-h-screen bg-[#05070a] flex items-center justify-center">
-        <div className="text-primary font-black animate-pulse uppercase tracking-[0.4em]">Loading Lucky Bingo...</div>
+        <div className="text-primary font-black animate-pulse uppercase tracking-[0.4em]">ቢንጎ እየተዘጋጀ ነው...</div>
       </div>
     );
 
