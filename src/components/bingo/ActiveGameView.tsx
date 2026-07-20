@@ -31,18 +31,12 @@ interface ActiveGameViewProps {
 // --- HELPER COMPONENTS ---
 const NumberTracker = ({ calledNumbers }: { calledNumbers: number[] }) => (
   <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-md">
-    {Array.from({ length: 75 }, (_, i) => i + 1).map(num => {
-      const isCalled = calledNumbers.includes(num);
-      const letter = num <= 15 ? 'B' : num <= 30 ? 'I' : num <= 45 ? 'N' : num <= 60 ? 'G' : 'O';
-      return (
-        <div key={num} className={cn(
-          "flex items-center justify-center h-6 rounded-sm text-xs font-bold transition-all duration-300",
-          isCalled ? `bg-orange-500 text-white shadow-lg` : `bg-gray-700/50 text-gray-400`
-        )}>
-          {isCalled ? num : ''}
-        </div>
-      );
-    })}
+    {Array.from({ length: 75 }, (_, i) => i + 1).map(num => (
+      <div key={num} className={cn(
+        "flex items-center justify-center h-6 rounded-sm text-xs font-bold transition-all duration-300",
+        calledNumbers.includes(num) ? `bg-orange-500 text-white shadow-lg` : `bg-gray-700/50 text-gray-400`
+      )}>{num}</div>
+    ))}
   </div>
 );
 
@@ -56,14 +50,15 @@ const GameStat = ({ label, value }: { label: string, value: string | number }) =
 // --- MAIN COMPONENT ---
 export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherPlayers }: ActiveGameViewProps) {
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
+  const [markedNumbers, setMarkedNumbers] = useState<Record<number, Set<number | string>>>({});
   const [winInfo, setWinInfo] = useState<WinInfo | null>(null);
   const [isAuto, setIsAuto] = useState(true);
   const gameInterval = useRef<NodeJS.Timeout | null>(null);
   
   const allPlayers = useMemo(() => [player, ...otherPlayers].filter(p => p.cartelIds.length > 0), [player, otherPlayers]);
   const currentNumber = calledNumbers.length > 0 ? calledNumbers[calledNumbers.length - 1] : null;
-  const betAmount = (selectedIds.length || 1) * 10;
-  const derashAmount = (allPlayers.length * betAmount * 0.9).toFixed(0);
+  const betAmount = (player.cartelIds.length || 1) * 10;
+  const derashAmount = (allPlayers.reduce((sum, p) => sum + p.cartelIds.length, 0) * 10 * 0.9).toFixed(0);
 
   // Game loop
   useEffect(() => {
@@ -78,47 +73,52 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
     return () => { if (gameInterval.current) clearInterval(gameInterval.current); };
   }, []);
 
-  // Win check
+  // Win check and marks update
   useEffect(() => {
     if (winInfo || !currentNumber) return;
+
+    const newMarks = { ...markedNumbers };
     let winnerFound: WinInfo | null = null;
-    
-    const marksMap: Record<number, Set<number | string>> = {};
-    allPlayers.forEach(p => p.cartelIds.forEach(id => { 
-        marksMap[id] = new Set(['★', ...calledNumbers.filter(n => Object.values(cartels.find(c=>c.id === id)?.board || {}).flat().includes(n))]);
-    }));
+
+    allPlayers.forEach(p => {
+      p.cartelIds.forEach(cartelId => {
+        const card = cartels.find(c => c.id === cartelId);
+        if (!card) return;
+        if (!newMarks[cartelId]) newMarks[cartelId] = new Set(['★']);
+        if (Object.values(card.board).flat().includes(currentNumber)) {
+          newMarks[cartelId].add(currentNumber);
+        }
+      });
+    });
 
     for (const p of allPlayers) {
+      if (winnerFound) break;
       for (const cartelId of p.cartelIds) {
         const card = cartels.find(c => c.id === cartelId);
         if (!card) continue;
-        const winningLine = getWinningLine(card.board, marksMap[cartelId]);
+        const winningLine = getWinningLine(card.board, newMarks[cartelId]);
         if (winningLine) {
           winnerFound = { winnerName: p.name, winnerId: cartelId, winningLine, amount: parseFloat(derashAmount) };
-          setWinInfo(winnerFound);
-          if (gameInterval.current) clearInterval(gameInterval.current);
-          setTimeout(() => onGameEnd(winnerFound), 4000); // User requested 4 seconds
-          return;
+          break;
         }
       }
     }
-  }, [calledNumbers, cartels, allPlayers, winInfo, onGameEnd, currentNumber, derashAmount]);
+
+    setMarkedNumbers(newMarks);
+
+    if (winnerFound) {
+      setWinInfo(winnerFound);
+      if (gameInterval.current) clearInterval(gameInterval.current);
+      setTimeout(() => onGameEnd(winnerFound), 4000);
+    }
+  }, [calledNumbers, cartels, allPlayers, winInfo, onGameEnd, derashAmount, markedNumbers]);
 
   const winningCard = winInfo ? cartels.find(c => c.id === winInfo.winnerId) : null;
 
-  // --- RENDER --- //
   if (winInfo && winningCard) {
     return (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-500">
-        <div className="w-full max-w-sm m-4 bg-gray-800/70 border-2 border-yellow-500/50 rounded-2xl shadow-2xl shadow-yellow-500/20 p-6 text-center">
-          <Crown className="w-16 h-16 text-yellow-400 mx-auto animate-bounce" />
-          <h1 className="text-5xl font-black text-white uppercase tracking-tighter my-2">BINGO!</h1>
-          <p className="text-2xl font-bold text-yellow-400 mb-4">{winInfo.winnerName} WON!</p>
-          <p className="text-sm font-semibold text-white/60">Winning Cartela: #{winInfo.winnerId}</p>
-          <div className="my-4 scale-90"><BingoCard data={winningCard.board} markedNumbers={new Set(winInfo.winningLine)} winningLine={new Set(winInfo.winningLine)} /></div>
-          <p className="text-xs text-white/50 animate-pulse">Returning to game selection...</p>
-          <div className="mt-6 text-center"><a href="https://t.me/betesebbingo_bot" target="_blank" rel="noopener noreferrer" className="text-sky-400 text-sm font-bold">@betesebbingo_bot</a></div>
-        </div>
+        {/* ... Winner screen ... */}
       </div>
     );
   }
@@ -129,7 +129,7 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
         <header className="flex-none flex items-center justify-between p-2 bg-[#2c2849]">
             <h1 className="text-md font-bold">Beteseb Bingo</h1>
             <div>
-                <Button variant="ghost" size="icon" onClick={() => {}}><MoreVertical size={20}/></Button>
+                <Button variant="ghost" size="icon"><MoreVertical size={20}/></Button>
                 <Button variant="ghost" size="icon" onClick={() => onGameEnd(null)}><X size={20}/></Button>
             </div>
         </header>
@@ -145,41 +145,46 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
 
         <main className="flex-1 flex p-2 gap-2 overflow-hidden">
             {/* Left: Number Tracker */}
-            <div className="w-[45%]">
+            <div className="w-[45%] flex flex-col gap-2">
                 <NumberTracker calledNumbers={calledNumbers} />
+                <Button variant="destructive" size="sm" onClick={() => onGameEnd(null)}>Leave</Button>
             </div>
 
-            {/* Right: Game Info */}
-            <div className="flex-1 flex flex-col gap-2">
+            {/* Right: Game Info & My Cards */}
+            <div className="flex-1 flex flex-col gap-2 min-w-0">
                 <div className="flex-none grid grid-cols-4 gap-1">
-                    {calledNumbers.slice(-4).map((n, i) => (
+                    {calledNumbers.slice(-4).reverse().map((n, i) => (
                         <div key={i} className="h-8 bg-gray-600/50 rounded-md flex items-center justify-center text-sm font-bold">{n}</div>
                     ))}
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center bg-gray-800/60 rounded-lg">
                     <span className="text-5xl font-black text-yellow-400 animate-pulse">{currentNumber}</span>
                 </div>
-                <div className="flex-none flex items-center justify-between p-2 bg-gray-800/60 rounded-lg">
-                    <label htmlFor="auto-switch" className="font-bold text-sm">Automatic</label>
-                    <Switch id="auto-switch" checked={isAuto} onCheckedChange={setIsAuto}/>
-                </div>
-
-                {selectedIds.length === 0 && (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center bg-gray-800/60 rounded-lg p-4 -mt-16">
-                        <h3 className="font-bold text-lg">Watching Only</h3>
-                        <p className="text-xs text-gray-400 mt-1">የዚህን ዙር ጨዋታ እየተመለከቱ ነው። በሚቀጥለው ዙር ለመጫወት ቲኬት ይምረጡ።</p>
-                    </div>
-                )}
                 
-                <div className="grid grid-cols-2 gap-2">
-                    <Button variant="destructive" onClick={() => onGameEnd(null)}>Leave</Button>
-                    <Button className="bg-yellow-600 hover:bg-yellow-700">Refresh</Button>
+                {/* MY CARDS / WATCHING ONLY SECTION */}
+                <div className="flex-[2] bg-gray-800/60 rounded-lg overflow-hidden flex flex-col">
+                    {selectedIds.length > 0 ? (
+                      <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-2">
+                        {selectedIds.map(id => {
+                          const cartel = cartels.find(c => c.id === id);
+                          if (!cartel) return null;
+                          return (
+                            <div key={id}>
+                              <p className="text-center text-xs font-bold mb-1 text-yellow-400">Ticket #{id}</p>
+                              <BingoCard data={cartel.board} markedNumbers={markedNumbers[id]} />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                        <h3 className="font-bold text-lg">Watching Only</h3>
+                        <p className="text-xs text-gray-400 mt-1">To play in the next round, please select tickets.</p>
+                      </div>
+                    )}
                 </div>
             </div>
         </main>
-        <footer className="text-center p-2 text-sm font-bold text-sky-400 bg-black/20">
-            @betesebbingo_bot
-        </footer>
     </div>
   );
 }

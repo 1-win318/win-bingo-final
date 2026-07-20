@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronLeft, RotateCcw, Crown } from 'lucide-react';
+import { ChevronLeft, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { BingoCard, BingoCardData } from '@/components/bingo/BingoCard';
-import { WinInfo } from './ActiveGameView';
 
+// Props interface is now clean, without any winner-related info.
 interface CartelSelectionProps {
   cartels: { id: number; board: BingoCardData }[];
   onBack: () => void;
@@ -16,10 +16,9 @@ interface CartelSelectionProps {
   timer: number;
   balance: number;
   playerCount: number;
-  lastWinInfo: WinInfo | null;
 }
 
-export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelectedIds, timer, balance, playerCount, lastWinInfo }: CartelSelectionProps) {
+export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelectedIds, timer, balance, playerCount }: CartelSelectionProps) {
   const [error, setError] = useState<string | null>(null);
 
   const toggleCartel = (id: number) => {
@@ -41,28 +40,21 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
 
   const stake = selectedIds.length * 10;
   const displayedCartels = cartels.slice(0, 400);
-  const winningCard = lastWinInfo ? cartels.find(c => c.id === lastWinInfo.winnerId) : null;
 
+  // The entire component is clean. No winner pop-up.
   return (
-    <div className="h-screen bg-[#1e1b32] text-white flex flex-col font-body items-center relative">
+    <div className="h-screen bg-[#1e1b32] text-white flex flex-col font-body items-center">
       
-      {/* Winner Popup */}
-      {lastWinInfo && winningCard && (
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-500">
-            <div className="w-full max-w-sm bg-gray-800/80 border-2 border-yellow-500/50 rounded-2xl shadow-2xl shadow-yellow-500/20 p-6 pt-4 text-center">
-              <Crown className="w-14 h-14 text-yellow-400 mx-auto -mt-12 bg-gray-800 p-2 rounded-full border-2 border-yellow-500/50"/>
-              <h1 className="text-4xl font-black text-white uppercase tracking-tighter my-2">BINGO!</h1>
-              <p className="text-xl font-bold text-yellow-400 mb-3">{lastWinInfo.winnerName} WON!</p>
-              <p className="text-xs font-semibold text-white/60">Winning Cartela: #{lastWinInfo.winnerId}</p>
-              <div className="my-3 scale-90"><BingoCard data={winningCard.board} markedNumbers={new Set(lastWinInfo.winningLine)} winningLine={new Set(lastWinInfo.winningLine)} /></div>
-              <a href="https://t.me/betesebbingo_bot" target="_blank" rel="noopener noreferrer" className="text-sky-400 text-sm font-bold mt-2">@betesebbingo_bot</a>
-            </div>
-          </div>
-      )}
-
       {/* Header */}
       <header className="w-full max-w-md px-2 h-14 flex items-center justify-between flex-none bg-[#2c2849]">
-          {/* Header content */}
+        <Button variant="ghost" size="icon" onClick={onBack} className="text-white hover:bg-white/10">
+          <ChevronLeft size={24} />
+        </Button>
+        <h1 className="text-lg font-black tracking-tight">Select Tickets</h1>
+        <Button variant="ghost" size="sm" className="text-white h-8 px-2 flex items-center gap-1.5 hover:bg-white/10">
+            <RotateCcw size={14} />
+            <span className="text-xs font-semibold">Refresh</span>
+        </Button>
       </header>
 
       {/* Stats Bar */}
@@ -93,9 +85,25 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
         </div>
       </main>
 
-      {/* Bottom Section */}
+      {/* Bottom Section (Fixed) */}
       <footer className="w-full max-w-md flex-none bg-black/20 pt-2">
-         {/* ... selected cards display ... */}
+        <div className="min-h-[110px] flex items-center justify-center p-2">
+          {selectedIds.length > 0 ? (
+              <div className={cn("grid w-full gap-3", selectedIds.length <= 4 ? "grid-cols-4" : "grid-cols-5")}>
+                  {selectedIds.map(id => {
+                    const cartel = displayedCartels.find(c => c.id === id);
+                    if (!cartel) return <div key={id} />;
+                    return (
+                      <div key={id} className="w-full animate-in zoom-in-95 fade-in-0 duration-300">
+                          <BingoCard data={cartel.board} isMini={true} />
+                      </div>
+                    );
+                  })}
+              </div>
+          ) : (
+              <p className="text-sm text-white/40">Select a cartel to view board</p>
+          )}
+        </div>
       </footer>
     </div>
   );
@@ -104,6 +112,10 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
 const StatBox = ({ label, value, isTimer = false, isError = false }: { label: string; value: string | number; isTimer?: boolean; isError?: boolean; }) => (
     <div className="py-2 border-r border-black/20 last:border-r-0">
         <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">{label}</p>
-        <p className={cn("font-bold text-lg", isTimer ? "text-yellow-400" : isError ? "text-red-500 text-xs" : "text-white")}>{value}</p>
+        <p className={cn("font-bold text-lg", 
+          isTimer ? "text-yellow-400" 
+          : isError ? "text-red-500 text-xs" 
+          : "text-white"
+        )}>{value}</p>
     </div>
 );
