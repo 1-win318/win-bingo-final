@@ -26,7 +26,6 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
       if (isSelected) {
         return prev.filter(i => i !== id);
       } else {
-        // Check against original balance, not the displayed one.
         if (balance < currentStake + 10) {
           setError("Insufficient balance");
           setTimeout(() => setError(null), 2000);
@@ -44,10 +43,9 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
     <div className="h-screen bg-[#1e1b32] text-white flex flex-col font-body items-center">
       
       <header className="w-full max-w-md px-2 h-14 flex items-center justify-between flex-none bg-[#2c2849]">
-        {/* ... header buttons ... */}
+        {/* ... header buttons unchanged ... */}
       </header>
 
-      {/* CORRECTED: Wallet now updates in real-time */}
       <section className="w-full max-w-md grid grid-cols-3 text-center bg-[#131121] flex-none">
          <StatBox label="Wallet" value={(balance - stake).toFixed(0)} />
          <StatBox label="Stake" value={error || stake} isError={!!error} />
@@ -73,10 +71,11 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
         </div>
       </main>
 
-      <footer className="w-full max-w-md flex-none bg-black/20 pt-2">
-        <div className="min-h-[110px] flex items-center justify-center p-2">
+      {/* CORRECTED: Expanded footer for better ticket visibility */}
+      <footer className="w-full max-w-md flex-none bg-black/20 pt-2 pb-4">
+        <div className="min-h-[200px] flex items-start justify-center p-2 overflow-y-auto scrollbar-hide">
           {selectedIds.length > 0 ? (
-              <div className={cn("grid w-full gap-3", selectedIds.length <= 4 ? "grid-cols-4" : "grid-cols-5")}>
+              <div className="grid grid-cols-4 gap-3 w-full">
                   {selectedIds.map(id => {
                     const cartel = displayedCartels.find(c => c.id === id);
                     if (!cartel) return <div key={id} />;
@@ -88,7 +87,9 @@ export function CartelSelection({ cartels, onBack, onPlay, selectedIds, setSelec
                   })}
               </div>
           ) : (
-              <p className="text-sm text-white/40">Select a cartel to view board</p>
+            <div className="flex items-center justify-center h-full min-h-[100px]">
+              <p className="text-sm text-white/40">Select a ticket to see your board.</p>
+            </div>
           )}
         </div>
       </footer>
