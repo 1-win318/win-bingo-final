@@ -29,40 +29,39 @@ export const generateBingoCard = (): BingoCardData => {
 };
 
 /**
- * Checks if a set of marked numbers constitutes a Bingo win (one line).
+ * Checks for a Bingo win and returns the winning line.
+ * @returns An array of the winning numbers/symbols, or null if no win.
  */
-export function checkBingoWin(card: BingoCardData, markedValues: Set<number | string>): boolean {
+export function getWinningLine(card: BingoCardData, markedValues: Set<number | string>): (number | string)[] | null {
   const cols = ['B', 'I', 'N', 'G', 'O'] as const;
 
   // 1. Check Verticals (Columns)
   for (const col of cols) {
-    if (card[col].every(val => markedValues.has(val))) return true;
+    const columnLine = card[col];
+    if (columnLine.every(val => markedValues.has(val))) {
+      return columnLine;
+    }
   }
 
   // 2. Check Horizontals (Rows)
   for (let row = 0; row < 5; row++) {
-    if (cols.every(col => markedValues.has(card[col][row]))) return true;
+    const rowLine = cols.map(col => card[col][row]);
+    if (rowLine.every(val => markedValues.has(val))) {
+      return rowLine;
+    }
   }
 
   // 3. Check Diagonal (Top-Left to Bottom-Right)
-  const diag1 = [
-    card.B[0],
-    card.I[1],
-    card.N[2],
-    card.G[3],
-    card.O[4]
-  ];
-  if (diag1.every(val => markedValues.has(val))) return true;
+  const diag1 = [card.B[0], card.I[1], card.N[2], card.G[3], card.O[4]];
+  if (diag1.every(val => markedValues.has(val))) {
+    return diag1;
+  }
 
   // 4. Check Diagonal (Bottom-Left to Top-Right)
-  const diag2 = [
-    card.B[4],
-    card.I[3],
-    card.N[2],
-    card.G[1],
-    card.O[0]
-  ];
-  if (diag2.every(val => markedValues.has(val))) return true;
+  const diag2 = [card.B[4], card.I[3], card.N[2], card.G[1], card.O[0]];
+  if (diag2.every(val => markedValues.has(val))) {
+    return diag2;
+  }
 
-  return false;
+  return null; // No win found
 }

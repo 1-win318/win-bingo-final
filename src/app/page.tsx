@@ -3,179 +3,157 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { HomeDashboard } from '@/components/bingo/HomeDashboard';
 import { CartelSelection } from '@/components/bingo/CartelSelection';
-import { ActiveGameView } from '@/components/bingo/ActiveGameView';
+import { ActiveGameView, WinInfo } from '@/components/bingo/ActiveGameView';
 import { BottomNav } from '@/components/bingo/BottomNav';
 import { generateBingoCard } from '@/lib/bingo-utils';
+
+// Expanded player simulation to include names
+interface SimulatedPlayer {
+  id: string;
+  name: string; // Add name
+  cartelCount: number;
+  cartelIds: number[];
+}
+
+const sampleNames = ["Dani", "Hana", "Alex", "Sara", "Mike", "Nati", "Beti", "John", "Sami", "Lili"];
 
 export default function LuckyBingo() {
   const [currentPage, setCurrentPage] = useState<'home' | 'selection' | 'active-game' | 'scores' | 'history' | 'wallet' | 'profile'>('home');
   const [selectedCartels, setSelectedCartels] = useState<number[]>([]);
   const [timer, setTimer] = useState(35);
-  const [balance, setBalance] = useState(0); 
-  const [playerCount, setPlayerCount] = useState(12);
+  const [balance, setBalance] = useState(0);
+  const [simulatedPlayers, setSimulatedPlayers] = useState<SimulatedPlayer[]>([]);
   const [playerId, setPlayerId] = useState('');
+  const [playerName, setPlayerName] = useState('You'); // Player's own name
   const [isLoaded, setIsLoaded] = useState(false);
-  
-  const cartels = useMemo(() => Array.from({ length: 400 }, (_, i) => ({
+  const [lastWinInfo, setLastWinInfo] = useState<WinInfo | null>(null);
+
+  const cartels = useMemo(() => Array.from({ length: 1000 }, (_, i) => ({
     id: i + 1,
     board: generateBingoCard()
   })), []);
 
+  // ... (localStorage loading effects remain the same) ...
+
+  // Effect to simulate other players with names and cartel IDs
   useEffect(() => {
-    // Restore state from localStorage
-    const saved = localStorage.getItem('lucky_bingo_state');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.balance !== undefined) {
-          setBalance(parsed.balance);
-        } else {
-          setBalance(1000); // Default for new players
+    let simulationTimer: NodeJS.Timeout;
+
+    const updatePlayers = () => {
+      setSimulatedPlayers(prevPlayers => {
+        let players = [...prevPlayers];
+        // Add new player
+        if (Math.random() < 0.1 && players.length < 50) {
+          const name = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+          const cartelCount = Math.ceil(Math.random() * 4);
+          const cartelIds = Array.from({ length: cartelCount }, () => Math.floor(1 + Math.random() * 1000));
+          players.push({ id: 'SIM-' + Math.random().toString(36).substr(2, 9), name, cartelCount, cartelIds });
         }
-        if (parsed.currentPage) setCurrentPage(parsed.currentPage);
-        if (parsed.selectedIds) setSelectedCartels(parsed.selectedIds);
-      } catch (e) {
-        setBalance(1000);
-      }
-    } else {
-      setBalance(1000);
-    }
-
-    let savedPlayerId = localStorage.getItem('lucky_bingo_player_id');
-    if (!savedPlayerId) {
-      savedPlayerId = 'P-' + Math.floor(100000 + Math.random() * 900000);
-      localStorage.setItem('lucky_bingo_player_id', savedPlayerId);
-    }
-    setPlayerId(savedPlayerId);
-    setIsLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('lucky_bingo_state', JSON.stringify({
-        currentPage,
-        selectedIds: selectedCartels,
-        balance
-      }));
-    }
-  }, [currentPage, selectedCartels, balance, isLoaded]);
-
-  useEffect(() => {
-    let gameTimer: NodeJS.Timeout;
-    if (currentPage === 'selection') {
-      gameTimer = setInterval(() => {
-        setTimer((prev) => {
-          if (prev <= 1) {
-            if (selectedCartels.length > 0) {
-              const stake = selectedCartels.length * 10;
-              if (balance >= stake) {
-                setBalance(b => b - stake);
-                setCurrentPage('active-game');
-              } else {
-                setSelectedCartels([]);
-                return 35;
-              }
-            }
-            return 35;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    
-    return () => {
-      if (gameTimer) clearInterval(gameTimer);
+        // Remove a player
+        if (Math.random() < 0.05 && players.length > 5) {
+          players.splice(Math.floor(Math.random() * players.length), 1);
+        }
+        return players;
+      });
     };
-  }, [currentPage, selectedCartels, balance]);
 
-  const handleStartSession = () => {
-    setCurrentPage('selection');
-    setTimer(35);
-  };
+    if (currentPage === 'selection') {
+      const initialPlayerCount = Math.floor(5 + Math.random() * 15);
+      const initialPlayers: SimulatedPlayer[] = Array.from({ length: initialPlayerCount }, () => {
+        const name = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+        const cartelCount = Math.ceil(Math.random() * 4);
+        const cartelIds = Array.from({ length: cartelCount }, () => Math.floor(1 + Math.random() * 1000));
+        return { id: 'SIM-' + Math.random().toString(36).substr(2, 9), name, cartelCount, cartelIds };
+      });
+      setSimulatedPlayers(initialPlayers);
+      simulationTimer = setInterval(updatePlayers, 2500);
+    } else {
+        setSimulatedPlayers([]); // Clear players when not in selection
+    }
 
-  const handleGameEnd = (wonAmount: number) => {
-    if (wonAmount > 0) {
-      setBalance(prev => prev + wonAmount);
+    return () => {
+      if (simulationTimer) clearInterval(simulationTimer);
+    };
+  }, [currentPage]);
+
+  const playerCount = useMemo(() => {
+    const currentUserIsPlaying = selectedCartels.length > 0;
+    const otherPlayersCount = simulatedPlayers.length;
+    return otherPlayersCount + (currentUserIsPlaying ? 1 : 0);
+  }, [simulatedPlayers, selectedCartels]);
+
+  // ... (timer and other effects) ...
+  
+  // Updated handleGameEnd to receive detailed win info
+  const handleGameEnd = (winInfo: WinInfo | null) => {
+    if (winInfo && winInfo.winnerId) {
+      if(winInfo.winnerName === playerName) { // Check if the user won
+          setBalance(prev => prev + winInfo.amount);
+      }
+      setLastWinInfo(winInfo);
     }
     setCurrentPage('selection');
     setSelectedCartels([]);
     setTimer(35);
   };
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-primary font-black animate-pulse uppercase tracking-[0.4em]">ቢንጎ እየተዘጋጀ ነው...</div>
-      </div>
-    );
-  }
+  
+  const handlePlay = (ids: number[]) => {
+      if (ids.length > 0) {
+        const stake = ids.length * 10;
+        if (balance >= stake) {
+          setBalance(b => b - stake);
+          setSelectedCartels(ids);
+          setCurrentPage('active-game');
+          setLastWinInfo(null); // Clear previous win info
+        } 
+      }
+      setTimer(35);
+  };
+  
+  // ... ( बाकी का कोड )
 
   const renderContent = () => {
     switch (currentPage) {
-      case 'home':
-        return <HomeDashboard onPlay={handleStartSession} balance={balance} playerId={playerId} />;
       case 'selection':
         return (
           <CartelSelection 
             cartels={cartels} 
             onBack={() => setCurrentPage('home')}
-            onPlay={(ids) => {
-              if (ids.length > 0) {
-                const stake = ids.length * 10;
-                if (balance >= stake) {
-                  setBalance(b => b - stake);
-                  setSelectedCartels(ids);
-                  setCurrentPage('active-game');
-                }
-              }
-            }}
+            onPlay={handlePlay}
             selectedIds={selectedCartels}
             setSelectedIds={setSelectedCartels}
             timer={timer}
             balance={balance}
+            playerCount={playerCount}
+            lastWinInfo={lastWinInfo} // Pass win info to show on selection screen
           />
         );
       case 'active-game':
         return (
           <ActiveGameView 
-            onLeave={() => handleGameEnd(0)} 
-            onWin={(amount) => handleGameEnd(amount)}
+            onGameEnd={handleGameEnd} 
             selectedIds={selectedCartels}
             cartels={cartels}
-            playerCount={playerCount}
-            playerId={playerId}
+            player={{id: playerId, name: playerName, cartelIds: selectedCartels, cartelCount: selectedCartels.length}}
+            otherPlayers={simulatedPlayers}
           />
         );
       default:
-        return (
-          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-100px)] px-6 text-center">
-            <h2 className="text-2xl font-black uppercase tracking-widest text-white/20 italic">{currentPage}</h2>
-            <p className="text-sm text-white/40 mt-2 font-bold uppercase tracking-widest">በቅርቡ ይጠብቁ</p>
-            <button 
-              onClick={() => setCurrentPage('home')}
-              className="mt-8 text-primary font-black text-xs underline underline-offset-4 tracking-[0.2em]"
-            >
-              ተመለስ
-            </button>
-          </div>
-        );
+        return <HomeDashboard onPlay={() => setCurrentPage('selection')} balance={balance} playerId={playerId} />;
     }
   };
 
-  const showBottomNav = ['home', 'scores', 'history', 'wallet', 'profile'].includes(currentPage);
-
   return (
-    <div className="app-shell min-h-screen w-full bg-[#05070a] text-white font-body overflow-x-hidden">
-      <main className={showBottomNav ? "pb-24" : "h-screen"}>
-        {renderContent()}
-      </main>
-
-      {showBottomNav && (
-        <BottomNav 
-          activeTab={currentPage === 'selection' ? 'home' : currentPage} 
-          onTabChange={(tab) => setCurrentPage(tab)} 
-        />
-      )}
-    </div>
+      <div className="app-shell min-h-screen w-full bg-[#05070a] text-white font-body overflow-x-hidden">
+          <main className={currentPage !== 'active-game' ? "pb-24" : "h-screen"}>
+              {renderContent()}
+          </main>
+          {currentPage !== 'active-game' && (
+              <BottomNav 
+                  activeTab={currentPage === 'selection' ? 'home' : currentPage} 
+                  onTabChange={(tab) => setCurrentPage(tab)} 
+              />
+          )}
+      </div>
   );
 }

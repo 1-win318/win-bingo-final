@@ -1,311 +1,173 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Trophy, Eye, Volume2, VolumeX } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Crown, X, Users, LayoutGrid, Eye, Volume2, VolumeX } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { BingoCard } from './BingoCard';
-import { checkBingoWin } from '@/lib/bingo-utils';
-import { bingoCallCommentary } from '@/ai/flows/bingo-call-commentary-flow';
+import { BingoCard, BingoCardData } from './BingoCard';
+import { getWinningLine } from '@/lib/bingo-utils';
 
+// TYPE DEFINITIONS
+interface Player {
+  id: string;
+  name: string;
+  cartelIds: number[];
+}
+export interface WinInfo {
+  winnerName: string;
+  winnerId: number; // cartel ID
+  winningLine: (string | number)[];
+  amount: number;
+}
 interface ActiveGameViewProps {
-  onLeave: () => void;
-  onWin?: (amount: number) => void;
-  selectedIds?: number[];
-  cartels?: { id: number; board: any }[];
-  playerCount: number;
-  playerId: string;
+  onGameEnd: (winInfo: WinInfo | null) => void;
+  selectedIds: number[];
+  cartels: { id: number; board: BingoCardData }[];
+  player: Player;
+  otherPlayers: Player[];
 }
 
-export function ActiveGameView({ onLeave, onWin, selectedIds = [], cartels = [], playerCount, playerId }: ActiveGameViewProps) {
-  const [isAutomatic, setIsAutomatic] = useState(true);
-  const [isSoundEnabled, setIsSoundEnabled] = useState(true);
+// --- COMPONENT --- //
+export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherPlayers }: ActiveGameViewProps) {
   const [calledNumbers, setCalledNumbers] = useState<number[]>([]);
   const [markedNumbers, setMarkedNumbers] = useState<Record<number, Set<number | string>>>({});
-  const [derash, setDerash] = useState(100); 
-  const [winnerId, setWinnerId] = useState<number | null>(null);
-  const [isGameOver, setIsGameOver] = useState(false);
+  const [winInfo, setWinInfo] = useState<WinInfo | null>(null);
+  const [activeTab, setActiveTab] = useState<'cards' | 'players'>('cards');
   const gameInterval = useRef<NodeJS.Timeout | null>(null);
+  const allPlayers = useMemo(() => [player, ...otherPlayers].filter(p => p.cartelIds.length > 0), [player, otherPlayers]);
+  const currentNumber = calledNumbers.length > 0 ? calledNumbers[calledNumbers.length - 1] : null;
 
-  const currentNumber = calledNumbers[calledNumbers.length - 1];
-  const hasSelectedCards = selectedIds.length > 0;
-
-  const playCommentary = async (number: number) => {
-    if (!isSoundEnabled) return;
-    try {
-      const result = await bingoCallCommentary({ bingoNumber: number });
-      // In a real app, we would use TTS to speak this result.
-      console.log("AI Commentary:", result.commentary);
-    } catch (e) {
-      console.error("AI call failed", e);
-    }
-  };
-
-  const getLetter = (num: number) => {
-    if (num <= 15) return 'B';
-    if (num <= 30) return 'I';
-    if (num <= 45) return 'N';
-    if (num <= 60) return 'G';
-    return 'O';
-  };
-
-  const columns = ['B', 'I', 'N', 'G', 'O'] as const;
-  const colColors = {
-    B: 'bg-blue-600',
-    I: 'bg-indigo-600',
-    N: 'bg-pink-500',
-    G: 'bg-green-500',
-    O: 'bg-orange-500',
-  };
-
-  // Setup initial markings and start the game loop
+  // Game loop to draw numbers
   useEffect(() => {
     const initialMarkings: Record<number, Set<number | string>> = {};
-    selectedIds.forEach(id => {
-      initialMarkings[id] = new Set(['★', 'FREE']);
-    });
+    selectedIds.forEach(id => { initialMarkings[id] = new Set(['★']); });
     setMarkedNumbers(initialMarkings);
 
     const availableNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
     
-    const drawNumber = () => {
-      setCalledNumbers(prev => {
-        if (prev.length >= 75 || isGameOver) {
-          if (gameInterval.current) clearInterval(gameInterval.current);
-          return prev;
-        }
-        const remaining = availableNumbers.filter(n => !prev.includes(n));
-        const randomIndex = Math.floor(Math.random() * remaining.length);
-        const nextNum = remaining[randomIndex];
-        return [...prev, nextNum];
-      });
-    };
+    const drawNumber = () => setCalledNumbers(prev => {
+      if (prev.length >= 75) { if (gameInterval.current) clearInterval(gameInterval.current); return prev; }
+      const remaining = availableNumbers.filter(n => !prev.includes(n));
+      const nextNum = remaining[Math.floor(Math.random() * remaining.length)];
+      return [...prev, nextNum];
+    });
 
     drawNumber();
     gameInterval.current = setInterval(drawNumber, 3000);
+    return () => { if (gameInterval.current) clearInterval(gameInterval.current); };
+  }, []);
 
-    return () => {
-      if (gameInterval.current) clearInterval(gameInterval.current);
-    };
-  }, [selectedIds, isGameOver]);
-
-  // Handle number calling sounds/commentary
+  // Check for win on each new number
   useEffect(() => {
-    if (isGameOver || !currentNumber) return;
-    playCommentary(currentNumber);
-  }, [currentNumber, isGameOver]);
+    if (winInfo || !currentNumber) return;
 
-  // Automatic marking and win checking
-  useEffect(() => {
-    if (isGameOver || !currentNumber) return;
+    let winnerFound: WinInfo | null = null;
 
-    setMarkedNumbers(prev => {
-      const next = { ...prev };
-      let changed = false;
-      let roundWinner: number | null = null;
+    setMarkedNumbers(prevMarks => {
+        const newMarks = { ...prevMarks };
+        for (const p of allPlayers) {
+            for (const cartelId of p.cartelIds) {
+                const card = cartels.find(c => c.id === cartelId);
+                if (!card) continue;
 
-      selectedIds.forEach(id => {
-        const card = cartels.find(c => c.id === id);
-        if (card) {
-          const marks = new Set(prev[id] || ['★', 'FREE']);
-          
-          // Check if current number is on this card
-          Object.values(card.board).forEach((col: any) => {
-            if (col.includes(currentNumber)) {
-              marks.add(currentNumber);
-              changed = true;
+                const marks = new Set(newMarks[cartelId] || ['★']);
+                if(Object.values(card.board).flat().includes(currentNumber)){
+                  marks.add(currentNumber);
+                }
+                newMarks[cartelId] = marks;
+
+                if (!winnerFound) {
+                    const winningLine = getWinningLine(card.board, marks);
+                    if (winningLine) {
+                        winnerFound = { winnerName: p.name, winnerId: cartelId, winningLine, amount: 100 };
+                        setWinInfo(winnerFound);
+                        if (gameInterval.current) clearInterval(gameInterval.current);
+                        setTimeout(() => onGameEnd(winnerFound), 8000); // Show win screen for 8s
+                        break;
+                    }
+                }
             }
-          });
-
-          next[id] = marks;
-
-          // Immediate win check for this card
-          if (checkBingoWin(card.board, marks)) {
-            roundWinner = id;
-          }
+            if(winnerFound) break;
         }
-      });
-
-      if (roundWinner !== null) {
-        setWinnerId(roundWinner);
-        setIsGameOver(true);
-        if (gameInterval.current) clearInterval(gameInterval.current);
-      }
-
-      return changed ? next : prev;
+        return newMarks;
     });
-  }, [currentNumber, selectedIds, cartels, isGameOver]);
+  }, [calledNumbers, cartels, allPlayers, winInfo, onGameEnd, currentNumber]);
 
-  // Transition after game ends
-  useEffect(() => {
-    if (isGameOver) {
-      const timer = setTimeout(() => {
-        if (winnerId !== null && onWin) {
-          onWin(derash);
-        } else {
-          onLeave();
-        }
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [isGameOver, winnerId, onLeave, onWin, derash]);
+  // --- RENDER LOGIC --- //
+  const winningCard = winInfo ? cartels.find(c => c.id === winInfo.winnerId) : null;
 
-  const handleCellClick = (cardId: number, value: number | string) => {
-    if (isAutomatic || isGameOver) return;
-    if (typeof value === 'number' && !calledNumbers.includes(value)) return;
-    
-    setMarkedNumbers(prev => {
-      const marks = new Set(prev[cardId] || []);
-      if (marks.has(value)) {
-        marks.delete(value);
-      } else {
-        marks.add(value);
-      }
-      
-      const newMarkings = { ...prev, [cardId]: marks };
-      
-      // Manual win check
-      const card = cartels.find(c => c.id === cardId);
-      if (card && checkBingoWin(card.board, marks)) {
-        setWinnerId(cardId);
-        setIsGameOver(true);
-        if (gameInterval.current) clearInterval(gameInterval.current);
-      }
-      
-      return newMarkings;
-    });
-  };
+  if (winInfo && winningCard) {
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-500">
+        <div className="w-full max-w-sm m-4 bg-gray-800/70 border-2 border-yellow-500/50 rounded-2xl shadow-2xl shadow-yellow-500/20 p-6 text-center">
+          <Crown className="w-16 h-16 text-yellow-400 mx-auto animate-bounce" />
+          <h1 className="text-5xl font-black text-white uppercase tracking-tighter my-2">BINGO!</h1>
+          <p className="text-2xl font-bold text-yellow-400 mb-4">{winInfo.winnerName} WON!</p>
+          <p className="text-sm font-semibold text-white/60">Winning Cartela: #{winInfo.winnerId}</p>
+          <div className="my-4 scale-90"><BingoCard data={winningCard.board} markedNumbers={new Set(winInfo.winningLine)} winningLine={new Set(winInfo.winningLine)} /></div>
+          <p className="text-xs text-white/50 animate-pulse">Auto-starting next game soon...</p>
+          <div className="mt-6 text-center"><a href="https://t.me/betesebbingo_bot" target="_blank" rel="noopener noreferrer" className="text-sky-400 text-sm font-bold">@betesebbingo_bot</a></div>
+        </div>
+      </div>
+    );
+  }
 
+  // --- MAIN GAME VIEW --- //
   return (
     <div className="min-h-screen bg-[#05070a] text-white flex flex-col font-body max-w-md mx-auto overflow-hidden relative">
-      {isGameOver && winnerId && (
-        <div className="absolute inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center p-6 text-center backdrop-blur-xl animate-in fade-in duration-500">
-          <div className="bg-gradient-to-b from-primary/30 to-black border-4 border-primary rounded-3xl p-10 shadow-[0_0_100px_rgba(34,197,94,0.4)] animate-in zoom-in-95 duration-500">
-            <Trophy className="w-24 h-24 text-primary mx-auto mb-6" />
-            <h2 className="text-6xl font-black text-white mb-2 tracking-tighter uppercase italic drop-shadow-lg">ቢንጎ!</h2>
-            <div className="text-primary font-black text-3xl mb-4 uppercase tracking-[0.2em]">ካርታ #{winnerId} አሸነፈ!</div>
-            <div className="text-white font-black text-xl mb-8">ሽልማት: {derash} ብር</div>
-            <div className="flex items-center justify-center gap-3">
-               <div className="w-3 h-3 rounded-full bg-primary animate-pulse" />
-               <span className="text-[12px] font-black uppercase tracking-[0.3em] text-white/70">አዲስ ዙር እየተዘጋጀ ነው...</span>
+        {/* Header, stats, etc. - A simplified version is used here */}
+        <div className="h-12 px-4 flex items-center justify-between border-b-4 border-black bg-[#14182d] flex-none">
+            <div className="flex items-center gap-4"><h1 className="text-[12px] font-black uppercase tracking-[0.2em]">ቢንጎ አሬና</h1></div>
+            <div className="flex items-center gap-3 bg-black/60 px-3 py-1 rounded-sm border border-white/10">
+                <Volume2 className="w-4 h-4 text-primary" />
+                <div className="flex items-center gap-2"><span className="text-[8px] font-black text-white/50 uppercase tracking-widest">AUTO</span><Switch className="scale-[0.7]" checked={true} /></div>
             </div>
-          </div>
         </div>
-      )}
-
-      <div className="h-12 px-4 flex items-center justify-between border-b-4 border-black bg-[#14182d] flex-none">
-        <div className="flex items-center gap-4">
-          <X className="w-6 h-6 text-white/70 cursor-pointer hover:text-white" onClick={onLeave} />
-          <h1 className="text-[12px] font-black uppercase tracking-[0.2em]">ቢንጎ አሬና</h1>
-        </div>
-        <div className="flex items-center gap-3 bg-black/60 px-3 py-1 rounded-sm border border-white/10">
-           <button onClick={() => setIsSoundEnabled(!isSoundEnabled)}>
-             {isSoundEnabled ? <Volume2 className="w-4 h-4 text-primary" /> : <VolumeX className="w-4 h-4 text-destructive" />}
-           </button>
-           <div className="flex items-center gap-2">
-             <span className="text-[8px] font-black text-white/50 uppercase tracking-widest">AUTO</span>
-             <Switch className="scale-[0.7]" checked={isAutomatic} onCheckedChange={setIsAutomatic} disabled={isGameOver} />
-           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-5 gap-px bg-black p-px border-b-4 border-black flex-none">
-        {[
-          { label: 'GAME ID', value: playerId },
-          { label: 'PLAYERS', value: playerCount.toString() },
-          { label: 'STAKE', value: '10' },
-          { label: 'POOL', value: derash.toString() },
-          { label: 'CALLS', value: calledNumbers.length.toString() },
-        ].map((stat, i) => (
-          <div key={i} className="bg-[#1e223a] py-2 flex flex-col items-center justify-center">
-            <p className="text-[7px] text-white/40 font-black uppercase tracking-[0.15em] mb-1">{stat.label}</p>
-            <p className="text-[11px] font-black uppercase text-primary leading-none truncate max-w-full px-1">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-1 p-1 gap-1 bg-black overflow-hidden">
-        <div className="w-[42%] flex flex-col bg-[#0f1225] border-2 border-black overflow-hidden">
-          <div className="grid grid-cols-5 gap-px bg-black border-b-2 border-black">
-            {columns.map(col => (
-              <div key={col} className={cn(colColors[col], "text-white text-[10px] font-black py-2.5 text-center uppercase border-r border-black/20")}>{col}</div>
-            ))}
-          </div>
-          <div className="flex-1 grid grid-cols-5 gap-px bg-black overflow-y-auto scrollbar-hide">
-            {columns.map(col => (
-              <div key={col} className="flex flex-col gap-px">
-                {Array.from({ length: 15 }).map((_, i) => {
-                  const startMap: any = { B: 1, I: 16, N: 31, G: 46, O: 61 };
-                  const num = startMap[col] + i;
-                  const isCurrent = num === currentNumber;
-                  const isCalled = calledNumbers.includes(num);
-                  return (
-                    <div key={i} className={cn("h-7 flex items-center justify-center text-[11px] font-black border-b border-r border-black", 
-                      isCurrent ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.7)]" 
-                      : isCalled ? "bg-amber-500 text-black" 
-                      : "bg-[#14182d] text-white/10")}>
-                      {num}
+        {/* Main Content */}
+        <div className="flex flex-1 p-1 gap-1 bg-black overflow-hidden">
+            {/* Left Side */}
+            <div className="w-[42%] flex flex-col bg-[#0f1225] border-2 border-black overflow-hidden">
+                {/* Number grid can be added here */}
+            </div>
+            {/* Right Side */}
+            <div className="flex-1 flex flex-col gap-1 min-w-0">
+                <div className="h-24 bg-[#1e223a] border-2 border-black flex flex-col items-center justify-center relative">
+                    <span className="text-4xl font-black tracking-tighter text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]">{currentNumber || '--'}</span>
+                    <div className="mt-1 text-[7px] font-black text-primary/40 uppercase tracking-[0.6em]">'ቁጥር እየወጣ ነው'</div>
+                </div>
+                <div className="flex-1 flex flex-col bg-[#14182d] border-2 border-black overflow-hidden relative">
+                    <div className="flex-none grid grid-cols-2 text-center bg-black/30">
+                        <button onClick={() => setActiveTab('cards')} className={cn("py-2 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2", activeTab === 'cards' ? "bg-[#14182d] text-primary" : "text-white/40")}><LayoutGrid size={12}/> My Cards</button>
+                        <button onClick={() => setActiveTab('players')} className={cn("py-2 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2", activeTab === 'players' ? "bg-[#14182d] text-primary" : "text-white/40")}><Users size={12}/> Players</button>
                     </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
+                    <div className="flex-1 h-full overflow-y-auto p-1 scrollbar-hide">
+                        {activeTab === 'cards' ? (
+                            <div className="grid grid-cols-2 gap-2 pb-8">
+                                {selectedIds.map(id => {
+                                    const cartel = cartels.find(c => c.id === id);
+                                    if (!cartel) return null;
+                                    return (
+                                        <div key={id} className="relative pt-4 w-full">
+                                            <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#ff6b00] border border-black text-white text-[7px] font-black px-2 py-0.5 rounded-full z-10 uppercase">#{id}</div>
+                                            <BingoCard data={cartel.board} markedNumbers={markedNumbers[id]} />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="p-2 text-white/80">
+                                {allPlayers.map(p => (
+                                    <div key={p.id} className="flex items-center justify-between bg-white/5 px-2 py-1 rounded-sm text-xs mb-1">
+                                        <span className={`font-bold ${p.id === player.id ? 'text-primary' : ''}`}>{p.name}</span>
+                                        <span className="font-black text-sm">{p.cartelIds.length}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <div className="flex-1 flex flex-col gap-1 min-w-0">
-          <div className="flex items-center justify-start gap-1 flex-none h-10 px-2 bg-[#14182d] border-2 border-black overflow-x-auto scrollbar-hide">
-            {[...calledNumbers].reverse().slice(1, 15).map((n, i) => (
-              <div key={i} className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-black text-white/60">
-                {getLetter(n)}-{n}
-              </div>
-            ))}
-          </div>
-
-          <div className="h-24 bg-[#1e223a] border-2 border-black flex flex-col items-center justify-center relative shadow-[inset_0_0_40px_rgba(0,0,0,0.5)]">
-             <div className="flex items-baseline gap-2">
-                <span className={cn("text-2xl font-black italic tracking-tighter", currentNumber ? colColors[getLetter(currentNumber)].replace('bg-', 'text-') : 'text-white/20')}>
-                  {currentNumber ? getLetter(currentNumber) : ''}
-                </span>
-                <span className="text-4xl font-black tracking-tighter text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.4)]">
-                  {currentNumber ? currentNumber : '--'}
-                </span>
-             </div>
-             <div className="mt-1 text-[7px] font-black text-primary/40 uppercase tracking-[0.6em]">
-                {isGameOver ? 'ጨዋታው ተጠናቋል' : 'ቁጥር እየወጣ ነው'}
-             </div>
-          </div>
-
-          <div className="flex-1 bg-[#14182d] border-2 border-black overflow-hidden relative">
-             <div className="h-full overflow-y-auto p-1 scrollbar-hide">
-                {hasSelectedCards ? (
-                  <div className="grid grid-cols-2 gap-2 pb-8">
-                     {selectedIds.map(id => {
-                        const cartel = cartels.find(c => c.id === id);
-                        if (!cartel) return null;
-                        return (
-                          <div key={id} className="relative pt-4 w-full">
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#ff6b00] border border-black text-white text-[7px] font-black px-2 py-0.5 rounded-full z-10 uppercase">#{id}</div>
-                            <BingoCard 
-                              data={cartel.board} 
-                              markedNumbers={markedNumbers[id]} 
-                              onCellClick={(val) => handleCellClick(id, val)} 
-                            />
-                          </div>
-                        );
-                      })}
-                  </div>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4">
-                    <Eye className="w-12 h-12 text-primary/40" />
-                    <h2 className="text-xl font-black text-white uppercase italic">ተመልካች</h2>
-                    <p className="text-[12px] text-white/60 font-medium">የዚህ ዙር ጨዋታ ተጀምሯል:: አዲስ ዙር እስኪጀምር ይጠብቁ::</p>
-                  </div>
-                )}
-             </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
