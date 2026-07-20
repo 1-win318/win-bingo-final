@@ -11,7 +11,7 @@ export default function LuckyBingo() {
   const [currentPage, setCurrentPage] = useState<'home' | 'selection' | 'active-game' | 'scores' | 'history' | 'wallet' | 'profile'>('home');
   const [selectedCartels, setSelectedCartels] = useState<number[]>([]);
   const [timer, setTimer] = useState(35);
-  const [balance, setBalance] = useState(1000.00); 
+  const [balance, setBalance] = useState(0); 
   const [playerCount, setPlayerCount] = useState(12);
   const [playerId, setPlayerId] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
@@ -22,18 +22,23 @@ export default function LuckyBingo() {
   })), []);
 
   useEffect(() => {
+    // Restore state from localStorage
     const saved = localStorage.getItem('lucky_bingo_state');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        if (parsed.balance !== undefined) {
+          setBalance(parsed.balance);
+        } else {
+          setBalance(1000); // Default for new players
+        }
         if (parsed.currentPage) setCurrentPage(parsed.currentPage);
         if (parsed.selectedIds) setSelectedCartels(parsed.selectedIds);
-        if (parsed.balance !== undefined) setBalance(parsed.balance);
       } catch (e) {
-        console.error("Failed to restore state", e);
+        setBalance(1000);
       }
     } else {
-      setBalance(1000.00);
+      setBalance(1000);
     }
 
     let savedPlayerId = localStorage.getItem('lucky_bingo_player_id');
@@ -42,7 +47,6 @@ export default function LuckyBingo() {
       localStorage.setItem('lucky_bingo_player_id', savedPlayerId);
     }
     setPlayerId(savedPlayerId);
-
     setIsLoaded(true);
   }, []);
 
@@ -62,16 +66,15 @@ export default function LuckyBingo() {
       gameTimer = setInterval(() => {
         setTimer((prev) => {
           if (prev <= 1) {
-            if (selectedCartels.length === 0) {
-              return 35;
-            }
-            const stake = selectedCartels.length * 10;
-            if (balance >= stake) {
-              setBalance(b => b - stake);
-              setCurrentPage('active-game');
-            } else {
-              setSelectedCartels([]);
-              return 35;
+            if (selectedCartels.length > 0) {
+              const stake = selectedCartels.length * 10;
+              if (balance >= stake) {
+                setBalance(b => b - stake);
+                setCurrentPage('active-game');
+              } else {
+                setSelectedCartels([]);
+                return 35;
+              }
             }
             return 35;
           }
@@ -99,13 +102,15 @@ export default function LuckyBingo() {
     setTimer(35);
   };
 
-  const renderContent = () => {
-    if (!isLoaded) return (
-      <div className="min-h-screen bg-[#05070a] flex items-center justify-center">
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-primary font-black animate-pulse uppercase tracking-[0.4em]">ቢንጎ እየተዘጋጀ ነው...</div>
       </div>
     );
+  }
 
+  const renderContent = () => {
     switch (currentPage) {
       case 'home':
         return <HomeDashboard onPlay={handleStartSession} balance={balance} playerId={playerId} />;
@@ -161,7 +166,7 @@ export default function LuckyBingo() {
 
   return (
     <div className="app-shell min-h-screen w-full bg-[#05070a] text-white font-body overflow-x-hidden">
-      <main className={showBottomNav ? "pb-24" : ""}>
+      <main className={showBottomNav ? "pb-24" : "h-screen"}>
         {renderContent()}
       </main>
 
