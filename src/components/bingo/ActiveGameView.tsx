@@ -27,47 +27,12 @@ interface ActiveGameViewProps {
   otherPlayers: Player[];
 }
 
-// --- HELPER FUNCTIONS & COMPONENTS ---
-
-const getBingoLetter = (number: number | null): string => {
-    if (!number) return '';
-    if (number <= 15) return 'B';
-    if (number <= 30) return 'I';
-    if (number <= 45) return 'N';
-    if (number <= 60) return 'G';
-    return 'O';
-};
-
-const CalledBall = ({ number }: { number: number | null }) => {
-  const letter = getBingoLetter(number);
-  const colors: Record<string, string> = {
-    B: 'bg-blue-500', I: 'bg-red-500', N: 'bg-gray-400', G: 'bg-yellow-500', O: 'bg-green-500', '': 'bg-gray-700',
-  };
-  return (
-    <div className="w-full flex flex-col items-center justify-center bg-black/20 p-2 rounded-lg h-full">
-      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner", colors[letter])}>{letter}</div>
-      <div className="text-5xl font-bold text-white mt-1">{number}</div>
-    </div>
-  );
-};
-
-const NumberTracker = ({ calledNumbers }: { calledNumbers: number[] }) => (
-  <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-md">
-    {Array.from({ length: 75 }, (_, i) => i + 1).map(num => (
-      <div key={num} className={cn(
-        "flex items-center justify-center aspect-square rounded-sm text-xs font-bold transition-all duration-300",
-        calledNumbers.includes(num) ? `bg-orange-500 text-white shadow-lg` : `bg-gray-700/50 text-gray-400`
-      )}>{num}</div>
-    ))}
-  </div>
-);
-
-const GameStat = ({ label, value }: { label: string, value: string | number }) => (
-  <div className="text-center">
-    <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider">{label}</p>
-    <p className="text-sm font-bold text-white">{value}</p>
-  </div>
-);
+// --- HELPER COMPONENTS ---
+// ... (Helper components are unchanged)
+const getBingoLetter = (number: number | null): string => { if (!number) return ''; if (number <= 15) return 'B'; if (number <= 30) return 'I'; if (number <= 45) return 'N'; if (number <= 60) return 'G'; return 'O'; };
+const CalledBall = ({ number }: { number: number | null }) => { const letter = getBingoLetter(number); const colors: Record<string, string> = { B: 'bg-blue-500', I: 'bg-red-500', N: 'bg-gray-400', G: 'bg-yellow-500', O: 'bg-green-500', '': 'bg-gray-700', }; return ( <div className="w-full flex flex-col items-center justify-center bg-black/20 p-2 rounded-lg h-full"><div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner", colors[letter])}>{letter}</div><div className="text-5xl font-bold text-white mt-1">{number}</div></div> ); };
+const NumberTracker = ({ calledNumbers }: { calledNumbers: number[] }) => ( <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-md"> {Array.from({ length: 75 }, (_, i) => i + 1).map(num => ( <div key={num} className={cn( "flex items-center justify-center aspect-square rounded-sm text-xs font-bold transition-all duration-300", calledNumbers.includes(num) ? `bg-orange-500 text-white shadow-lg` : `bg-gray-700/50 text-gray-400` )}>{num}</div> ))} </div> );
+const GameStat = ({ label, value }: { label: string, value: string | number }) => ( <div className="text-center"><p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider">{label}</p><p className="text-sm font-bold text-white">{value}</p></div> );
 
 // --- MAIN COMPONENT ---
 export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherPlayers }: ActiveGameViewProps) {
@@ -125,18 +90,43 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
     if (winnerFound) {
       setWinInfo(winnerFound);
       if (gameInterval.current) clearInterval(gameInterval.current);
+      // This timeout will automatically call onGameEnd after 4 seconds
       setTimeout(() => onGameEnd(winnerFound), 4000);
     }
   }, [calledNumbers, cartels, allPlayersWithTickets, winInfo, onGameEnd, derashAmount, markedNumbers]);
 
+  const winningCard = winInfo ? cartels.find(c => c.id === winInfo.winnerId) : null;
 
-  if (winInfo) {
-      // ... win screen logic ...
+  // --- RENDER LOGIC ---
+
+  // NEW: Winner screen UI
+  if (winInfo && winningCard) {
+    return (
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-500 p-4">
+        <div className="w-full max-w-sm bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-yellow-500 shadow-2xl p-4 text-center">
+          <h2 className="text-3xl font-black text-yellow-400 tracking-wider">BINGO!</h2>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <Crown className="w-8 h-8 text-yellow-500" />
+            <p className="text-2xl font-bold text-white">{winInfo.winnerName}</p>
+          </div>
+          <p className="text-lg text-gray-300">won <span className="font-bold text-yellow-400">ETB {winInfo.amount.toFixed(2)}</span></p>
+          
+          <div className="my-4">
+            <BingoCard 
+              data={winningCard.board} 
+              // Highlight the winning line
+              markedNumbers={new Set(winInfo.winningLine)}
+              isMini={false} // Show a larger card for the winner
+            />
+          </div>
+          <p className="text-xs text-gray-400 animate-pulse">Returning to game...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="w-full max-w-md mx-auto h-screen bg-[#1e1b32] text-white flex flex-col font-body">
-        {/* RESTORED: Header and Stats */}
         <header className="flex-none flex items-center justify-between p-2 bg-[#2c2849]">
           <h1 className="text-md font-bold">Beteseb Bingo</h1>
           <div><Button variant="ghost" size="icon" onClick={() => onGameEnd(null)}><X size={20}/></Button></div>
@@ -150,13 +140,11 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
         </div>
 
         <main className="flex-1 flex p-2 gap-2 overflow-hidden">
-            {/* Left Column */}
             <div className="w-[150px] flex-none flex flex-col gap-2">
                 <NumberTracker calledNumbers={calledNumbers} />
                 <Button variant="destructive" size="sm" onClick={() => onGameEnd(null)}>Leave</Button>
             </div>
 
-            {/* Right Column */}
             <div className="flex-1 flex flex-col gap-2 min-w-0">
                 <div className="h-[100px]">
                     <CalledBall number={currentNumber} />
