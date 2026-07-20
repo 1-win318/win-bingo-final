@@ -44,19 +44,18 @@ const CalledBall = ({ number }: { number: number | null }) => {
     B: 'bg-blue-500', I: 'bg-red-500', N: 'bg-gray-400', G: 'bg-yellow-500', O: 'bg-green-500', '': 'bg-gray-700',
   };
   return (
-    <div className="w-full flex flex-col items-center justify-center bg-black/20 p-2 rounded-lg">
-      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-inner", colors[letter])}>{letter}</div>
-      <div className="text-6xl font-bold text-white mt-1">{number}</div>
+    <div className="w-full flex flex-col items-center justify-center bg-black/20 p-2 rounded-lg h-full">
+      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-inner", colors[letter])}>{letter}</div>
+      <div className="text-5xl font-bold text-white mt-1">{number}</div>
     </div>
   );
 };
 
-// CORRECTED: Larger font size for tracker
 const NumberTracker = ({ calledNumbers }: { calledNumbers: number[] }) => (
   <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-md">
     {Array.from({ length: 75 }, (_, i) => i + 1).map(num => (
       <div key={num} className={cn(
-        "flex items-center justify-center aspect-square rounded-sm text-xs font-bold transition-all duration-300", // Increased font size
+        "flex items-center justify-center aspect-square rounded-sm text-xs font-bold transition-all duration-300",
         calledNumbers.includes(num) ? `bg-orange-500 text-white shadow-lg` : `bg-gray-700/50 text-gray-400`
       )}>{num}</div>
     ))}
@@ -83,22 +82,19 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
   const derashAmount = (totalTickets * 10 * 0.9).toFixed(0);
   const currentNumber = calledNumbers.length > 0 ? calledNumbers[calledNumbers.length - 1] : null;
 
-  // RESTORED: Game loop logic
   useEffect(() => {
     const availableNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
     const drawNumber = () => setCalledNumbers(prev => {
       if (prev.length >= 75) { if (gameInterval.current) clearInterval(gameInterval.current); return prev; }
       const remaining = availableNumbers.filter(n => !prev.includes(n));
-      if (remaining.length === 0) return prev; 
-      const randomIndex = Math.floor(Math.random() * remaining.length);
-      return [...prev, remaining[randomIndex]];
+      if (remaining.length === 0) return prev;
+      return [...prev, remaining[Math.floor(Math.random() * remaining.length)]];
     });
-    drawNumber(); // Draw first number immediately
+    drawNumber();
     gameInterval.current = setInterval(drawNumber, 3000);
     return () => { if (gameInterval.current) clearInterval(gameInterval.current); };
   }, []);
 
-  // RESTORED: Win check and marks update logic
   useEffect(() => {
     if (winInfo || !currentNumber) return;
     const newMarks = { ...markedNumbers };
@@ -109,9 +105,7 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
         const card = cartels.find(c => c.id === cartelId);
         if (!card) return;
         if (!newMarks[cartelId]) newMarks[cartelId] = new Set(['★']);
-        if (Object.values(card.board).flat().includes(currentNumber)) {
-          newMarks[cartelId].add(currentNumber);
-        }
+        if (Object.values(card.board).flat().includes(currentNumber)) newMarks[cartelId].add(currentNumber);
       });
     });
 
@@ -135,24 +129,24 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
     }
   }, [calledNumbers, cartels, allPlayersWithTickets, winInfo, onGameEnd, derashAmount, markedNumbers]);
 
-  const winningCard = winInfo ? cartels.find(c => c.id === winInfo.winnerId) : null;
 
-  if (winInfo && winningCard) {
-    return (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-500">
-          {/* Winner screen, unchanged */}
-      </div>
-    );
+  if (winInfo) {
+      // ... win screen logic ...
   }
 
   return (
     <div className="w-full max-w-md mx-auto h-screen bg-[#1e1b32] text-white flex flex-col font-body">
+        {/* RESTORED: Header and Stats */}
         <header className="flex-none flex items-center justify-between p-2 bg-[#2c2849]">
-          {/* ... Header ... */}
+          <h1 className="text-md font-bold">Beteseb Bingo</h1>
+          <div><Button variant="ghost" size="icon" onClick={() => onGameEnd(null)}><X size={20}/></Button></div>
         </header>
-
         <div className="flex-none grid grid-cols-5 gap-1 py-2 px-1 bg-black/20">
-            {/* ... Stats ... */}
+            <GameStat label="Game ID" value="BB3IWDBP"/>
+            <GameStat label="Players" value={allPlayersWithTickets.length}/>
+            <GameStat label="Bet" value={betAmount}/>
+            <GameStat label="Derash" value={derashAmount}/>
+            <GameStat label="Called" value={`${calledNumbers.length}/75`}/>
         </div>
 
         <main className="flex-1 flex p-2 gap-2 overflow-hidden">
@@ -164,25 +158,29 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
 
             {/* Right Column */}
             <div className="flex-1 flex flex-col gap-2 min-w-0">
-                <CalledBall number={currentNumber} />
+                <div className="h-[100px]">
+                    <CalledBall number={currentNumber} />
+                </div>
                 
                 <div className="flex-1 bg-black/20 rounded-lg overflow-hidden flex flex-col">
                     {selectedIds.length > 0 ? (
-                      <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-2">
+                      <div className="flex-1 overflow-y-auto scrollbar-hide p-2 grid grid-cols-2 gap-2">
                         {selectedIds.map(id => {
                           const cartel = cartels.find(c => c.id === id);
                           if (!cartel) return null;
                           return (
-                            // CORRECTED: Scaled div for card sizing
-                            <div key={id} style={{ transform: 'scale(0.95)', transformOrigin: 'top' }}>
-                              <p className="text-center text-xs font-bold mb-1 text-yellow-400">Ticket #{id}</p>
-                              <BingoCard data={cartel.board} markedNumbers={markedNumbers[id]} />
+                            <div key={id}>
+                              <p className="text-center text-[10px] font-bold mb-1 text-yellow-400">Ticket #{id}</p>
+                              <BingoCard data={cartel.board} markedNumbers={markedNumbers[id]} isMini={true} />
                             </div>
                           )
                         })}
                       </div>
                     ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center text-center p-4">{/* ... */ }</div>
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                        <h3 className="font-bold text-lg">Watching Only</h3>
+                        <p className="text-xs text-gray-400 mt-1">To play in the next round, please select tickets.</p>
+                      </div>
                     )}
                 </div>
             </div>
