@@ -33,7 +33,37 @@ export default function LuckyBingo() {
     board: generateBingoCard()
   })), []);
 
-  // ... (localStorage loading effects remain the same) ...
+  useEffect(() => {
+    // Restore state from localStorage
+    const saved = localStorage.getItem('lucky_bingo_state');
+    let initialBalance = 1000; // Default balance
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.balance !== undefined) {
+          initialBalance = parsed.balance;
+        } 
+        if (parsed.currentPage) setCurrentPage(parsed.currentPage);
+        if (parsed.selectedIds) setSelectedCartels(parsed.selectedIds);
+      } catch (e) {
+        // Keep default balance
+      }
+    }
+    
+    // Give the user 100 birr for testing as requested
+    setBalance(initialBalance + 100);
+
+    let savedPlayerId = localStorage.getItem('lucky_bingo_player_id');
+    if (!savedPlayerId) {
+      savedPlayerId = 'P-' + Math.floor(100000 + Math.random() * 900000);
+      localStorage.setItem('lucky_bingo_player_id', savedPlayerId);
+    }
+    setPlayerId(savedPlayerId);
+    setIsLoaded(true);
+  }, []);
+
+  // ... (the rest of the component remains the same)
 
   // Effect to simulate other players with names and cartel IDs
   useEffect(() => {
@@ -82,9 +112,6 @@ export default function LuckyBingo() {
     return otherPlayersCount + (currentUserIsPlaying ? 1 : 0);
   }, [simulatedPlayers, selectedCartels]);
 
-  // ... (timer and other effects) ...
-  
-  // Updated handleGameEnd to receive detailed win info
   const handleGameEnd = (winInfo: WinInfo | null) => {
     if (winInfo && winInfo.winnerId) {
       if(winInfo.winnerName === playerName) { // Check if the user won
@@ -109,8 +136,14 @@ export default function LuckyBingo() {
       }
       setTimer(35);
   };
-  
-  // ... ( बाकी का कोड )
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-primary font-black animate-pulse uppercase tracking-[0.4em]">ቢንጎ እየተዘጋጀ ነው...</div>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     switch (currentPage) {
