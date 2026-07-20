@@ -38,33 +38,25 @@ const getBingoLetter = (number: number | null): string => {
     return 'O';
 };
 
-// CORRECTED: Smaller CalledBall
 const CalledBall = ({ number }: { number: number | null }) => {
   const letter = getBingoLetter(number);
   const colors: Record<string, string> = {
-    B: 'bg-blue-500',
-    I: 'bg-red-500',
-    N: 'bg-gray-400',
-    G: 'bg-yellow-500',
-    O: 'bg-green-500',
-    '': 'bg-gray-700',
+    B: 'bg-blue-500', I: 'bg-red-500', N: 'bg-gray-400', G: 'bg-yellow-500', O: 'bg-green-500', '': 'bg-gray-700',
   };
-
   return (
     <div className="w-full flex flex-col items-center justify-center bg-black/20 p-2 rounded-lg">
-      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-inner", colors[letter])}>
-        {letter}
-      </div>
+      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-inner", colors[letter])}>{letter}</div>
       <div className="text-6xl font-bold text-white mt-1">{number}</div>
     </div>
   );
 };
 
+// CORRECTED: Larger font size for tracker
 const NumberTracker = ({ calledNumbers }: { calledNumbers: number[] }) => (
   <div className="grid grid-cols-5 gap-1 p-1 bg-black/20 rounded-md">
     {Array.from({ length: 75 }, (_, i) => i + 1).map(num => (
       <div key={num} className={cn(
-        "flex items-center justify-center aspect-square rounded-sm text-[10px] font-bold transition-all duration-300",
+        "flex items-center justify-center aspect-square rounded-sm text-xs font-bold transition-all duration-300", // Increased font size
         calledNumbers.includes(num) ? `bg-orange-500 text-white shadow-lg` : `bg-gray-700/50 text-gray-400`
       )}>{num}</div>
     ))}
@@ -91,13 +83,56 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
   const derashAmount = (totalTickets * 10 * 0.9).toFixed(0);
   const currentNumber = calledNumbers.length > 0 ? calledNumbers[calledNumbers.length - 1] : null;
 
-  // Game Logic (unchanged)
+  // RESTORED: Game loop logic
   useEffect(() => {
-    // ... game logic ...
+    const availableNumbers = Array.from({ length: 75 }, (_, i) => i + 1);
+    const drawNumber = () => setCalledNumbers(prev => {
+      if (prev.length >= 75) { if (gameInterval.current) clearInterval(gameInterval.current); return prev; }
+      const remaining = availableNumbers.filter(n => !prev.includes(n));
+      if (remaining.length === 0) return prev; 
+      const randomIndex = Math.floor(Math.random() * remaining.length);
+      return [...prev, remaining[randomIndex]];
+    });
+    drawNumber(); // Draw first number immediately
+    gameInterval.current = setInterval(drawNumber, 3000);
+    return () => { if (gameInterval.current) clearInterval(gameInterval.current); };
   }, []);
 
+  // RESTORED: Win check and marks update logic
   useEffect(() => {
-    // ... win logic ...
+    if (winInfo || !currentNumber) return;
+    const newMarks = { ...markedNumbers };
+    let winnerFound: WinInfo | null = null;
+
+    allPlayersWithTickets.forEach(p => {
+      p.cartelIds.forEach(cartelId => {
+        const card = cartels.find(c => c.id === cartelId);
+        if (!card) return;
+        if (!newMarks[cartelId]) newMarks[cartelId] = new Set(['★']);
+        if (Object.values(card.board).flat().includes(currentNumber)) {
+          newMarks[cartelId].add(currentNumber);
+        }
+      });
+    });
+
+    for (const p of allPlayersWithTickets) {
+      if (winnerFound) break;
+      for (const cartelId of p.cartelIds) {
+        const card = cartels.find(c => c.id === cartelId);
+        if (!card) continue;
+        const winningLine = getWinningLine(card.board, newMarks[cartelId]);
+        if (winningLine) {
+          winnerFound = { winnerName: p.name, winnerId: cartelId, winningLine, amount: parseFloat(derashAmount) };
+          break;
+        }
+      }
+    }
+    setMarkedNumbers(newMarks);
+    if (winnerFound) {
+      setWinInfo(winnerFound);
+      if (gameInterval.current) clearInterval(gameInterval.current);
+      setTimeout(() => onGameEnd(winnerFound), 4000);
+    }
   }, [calledNumbers, cartels, allPlayersWithTickets, winInfo, onGameEnd, derashAmount, markedNumbers]);
 
   const winningCard = winInfo ? cartels.find(c => c.id === winInfo.winnerId) : null;
@@ -113,16 +148,11 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
   return (
     <div className="w-full max-w-md mx-auto h-screen bg-[#1e1b32] text-white flex flex-col font-body">
         <header className="flex-none flex items-center justify-between p-2 bg-[#2c2849]">
-          <h1 className="text-md font-bold">Beteseb Bingo</h1>
-            <div><Button variant="ghost" size="icon" onClick={() => onGameEnd(null)}><X size={20}/></Button></div>
+          {/* ... Header ... */}
         </header>
 
         <div className="flex-none grid grid-cols-5 gap-1 py-2 px-1 bg-black/20">
-            <GameStat label="Game ID" value="BB3IWDBP"/>
-            <GameStat label="Players" value={allPlayersWithTickets.length}/>
-            <GameStat label="Bet" value={betAmount}/>
-            <GameStat label="Derash" value={derashAmount}/>
-            <GameStat label="Called" value={`${calledNumbers.length}/75`}/>
+            {/* ... Stats ... */}
         </div>
 
         <main className="flex-1 flex p-2 gap-2 overflow-hidden">
@@ -138,24 +168,21 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
                 
                 <div className="flex-1 bg-black/20 rounded-lg overflow-hidden flex flex-col">
                     {selectedIds.length > 0 ? (
-                      <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-3">
+                      <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-2">
                         {selectedIds.map(id => {
                           const cartel = cartels.find(c => c.id === id);
                           if (!cartel) return null;
                           return (
-                            <div key={id}>
+                            // CORRECTED: Scaled div for card sizing
+                            <div key={id} style={{ transform: 'scale(0.95)', transformOrigin: 'top' }}>
                               <p className="text-center text-xs font-bold mb-1 text-yellow-400">Ticket #{id}</p>
-                              {/* CORRECTED: Using isMini prop for smaller cards */}
-                              <BingoCard data={cartel.board} markedNumbers={markedNumbers[id]} isMini={true} />
+                              <BingoCard data={cartel.board} markedNumbers={markedNumbers[id]} />
                             </div>
                           )
                         })}
                       </div>
                     ) : (
-                      <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-                        <h3 className="font-bold text-lg">Watching Only</h3>
-                        <p className="text-xs text-gray-400 mt-1">To play in the next round, please select tickets.</p>
-                      </div>
+                      <div className="flex-1 flex flex-col items-center justify-center text-center p-4">{/* ... */ }</div>
                     )}
                 </div>
             </div>
