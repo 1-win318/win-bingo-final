@@ -98,7 +98,6 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
 
   // --- RENDER LOGIC ---
 
-  // CORRECTED: Winner screen now includes the Ticket ID
   if (winInfo && winningCard) {
     return (
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center animate-in fade-in duration-500 p-4">
@@ -113,7 +112,6 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
           <p className="text-lg text-gray-300">won <span className="font-bold text-yellow-400">ETB {winInfo.amount.toFixed(2)}</span></p>
           
           <div className="my-4">
-             {/* ADDED: Displaying the winning ticket ID */}
             <p className="text-center text-sm font-bold mb-2 text-gray-300">
               Winning Ticket: <span className="text-yellow-400 font-black">#{winInfo.winnerId}</span>
             </p>
@@ -132,9 +130,8 @@ export function ActiveGameView({ onGameEnd, selectedIds, cartels, player, otherP
 
   return (
     <div className="w-full max-w-md mx-auto h-screen bg-[#1e1b32] text-white flex flex-col font-body">
-      {/* ... (Main game view is unchanged) ... */}
         <header className="flex-none flex items-center justify-between p-2 bg-[#2c2849]">
-          <h1 className="text-md font-bold">Beteseb Bingo</h1>
+          <h1 className="text-md font-bold">Lucky Bingo</h1>
           <div><Button variant="ghost" size="icon" onClick={() => onGameEnd(null)}><X size={20}/></Button></div>
         </header>
         <div className="flex-none grid grid-cols-5 gap-1 py-2 px-1 bg-black/20">
